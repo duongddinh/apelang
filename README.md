@@ -23,6 +23,106 @@ cd apelang
 make
 ```
 
+## How to speak Ape
+Ready to master the grunts and gestures of Apelang?:
+
+**Keywords (The Primal Commands)**
+```ape``` - Declare a new variable. This is how you tell the jungle you've found a new spot for your bananas (or numbers, or true/false statements).
+```
+ape myFavoriteNumber = 42
+ape isHungry = true
+ape apeName = "Chimpanzee Charlie"
+```
+```tree``` - Print a value to the jungle floor (console). Show off your findings!
+```
+tree "Look, a big tree!"
+tree 10 + 5 # Prints 15
+```
+```ask()``` - Get input from the user. This is how you ask other apes important questions, like "Got any spare bananas?"
+```
+ape response = ask()
+tree "You said: " + response
+```
+```if``` - Conditional execution. If a condition is true, do something. Otherwise, well, maybe do something else.
+```
+if bananas > 0 {
+    tree "Eat banana!"
+} else {
+    tree "Must find more bananas."
+}
+```
+```else``` - Alternative path for if statements. What to do when the if condition isn't met.
+
+```swing``` - Loop a block of code. Keep swinging through the trees until your condition is met! The value after swing determines how many times the loop runs.
+```
+swing 3 {
+    tree "Swinging!"
+} # Prints "Swinging!" three times
+```
+```tribe``` - Define a function. Gather your instructions into a "tribe" that can be called upon later.
+```
+tribe greetApe(name) {
+    tree "OOH-OOH-AAH-AAH, " + name + "!"
+    give nil # Functions should always give something back, even if it's nothing (nil)
+}
+greetApe("Bob")
+```
+```give``` - Return a value from a function. What the tribe gives back after performing its task.
+```
+tribe getBananaCount() {
+    give 7
+}
+
+ape count = getBananaCount()
+tree "Total bananas: " + count
+```
+
+**Operators (The Primal Interactions)**
+```ooh (+)``` - Addition and String Concatenation. For combining numbers or shouting phrases together.
+```
+tree 5 ooh 3 # Prints 8
+tree "Big " ooh-ooh-aah-aah "Banana" # Prints "Big Banana"
+```
+```aah (-)``` - Subtraction. For when you've eaten some bananas.
+```
+tree 10 aah 4 # Prints 6
+```
+
+```eek (*)``` - Multiplication. For when you find a whole bunch of bananas.
+```
+tree 2 eek 5 # Prints 10
+```
+```ook (/)``` - Division. For sharing bananas (carefully!).
+```
+tree 10 ook 2 # Prints 5
+```
+
+```==``` - Equality. Are these two things exactly the same?
+```
+tree 5 == 5 # Prints true
+tree "banana" == "apple" # Prints false
+```
+
+```!=``` - Inequality. Are these two things different?
+```
+tree 5 != 10 # Prints true
+```
+```<``` - Less than. Is the first value smaller than the second?
+```
+tree 3 < 5 # Prints true
+```
+```<=``` - Less than or equal to. Is the first value smaller than or equal to the second?
+```
+tree 5 <= 5 # Prints true
+```
+```>``` - Greater than. Is the first value larger than the second?
+```
+tree 8 > 2 # Prints true
+```
+```>=``` - Greater than or equal to. Is the first value larger than or equal to the second?
+```
+tree 7 >= 7 # Prints true
+```
 
 ## Now, let's make some noise!
 
@@ -59,8 +159,9 @@ ape bananas = 5
 
 swing bananas {
     tree "I have a banana!"
-    bananas = bananas - 1
+    bananas = bananas aah 1
 }
+
 ```
 Output:
 ```
@@ -109,7 +210,8 @@ The early ape gets the worm... or the banana.
 ```
 tree "How many bananas do you have?"
 ape myBananas = ask()
-tree "You say you have " + myBananas + " bananas. OOH-OOH-AAH-AAH!"
+tree "You say you have " ooh myBananas ooh " bananas. OOH-OOH-AAH-AAH!"
+
 ```
 
 Output (user input: 10):
