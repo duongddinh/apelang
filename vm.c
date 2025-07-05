@@ -227,24 +227,37 @@ static VMResult run(VM* vm) {
         printf("\n");
         break;
       }
-      case OP_ASK: {
-        char line[1024];
-        if (fgets(line, sizeof(line), stdin)) {
-          line[strcspn(line, "\r\n")] = 0;
-          int len = strlen(line);
-          char* str = (char*)malloc(len + 1);
-          memcpy(str, line, len);
-          str[len] = '\0';
-          ObjString* stringObj = (ObjString*)malloc(sizeof(ObjString));
-          stringObj->obj.type = OBJ_STRING;
-          stringObj->chars = str;
-          stringObj->length = len;
-          *vm->stackTop++ = OBJ_VAL(stringObj);
-        } else {
-          *vm->stackTop++ = NIL_VAL;
-        }
+case OP_ASK: {
+    char line[1024];
+
+    if (!fgets(line, sizeof line, stdin)) {
+        *vm->stackTop++ = NIL_VAL;
         break;
-      }
+    }
+    line[strcspn(line, "\r\n")] = 0;          
+
+    char *p = line;
+    if (*p == '-') ++p;
+    bool isNumber = (*p != '\0');
+    while (*p && isNumber) { isNumber &= isdigit(*p++); }
+
+    if (isNumber) {
+        double num = strtod(line, NULL);
+        *vm->stackTop++ = NUMBER_VAL(num);    
+    } else {
+        int len = strlen(line);
+        char *str = malloc(len + 1);
+        memcpy(str, line, len + 1);
+
+        ObjString *obj = malloc(sizeof(ObjString));
+        obj->obj.type = OBJ_STRING;
+        obj->length   = len;
+        obj->chars    = str;
+
+        *vm->stackTop++ = OBJ_VAL(obj);    
+    }
+    break;
+}
 
       case OP_GET_LOCAL: {
         uint8_t slot = *frame->ip++;
