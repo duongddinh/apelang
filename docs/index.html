@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="apelang.png">
+
     <title>Apelang Playground</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
@@ -10,13 +12,13 @@
         :root {
             --background: #e8f5e9;
             --container-bg: #faf8f2; 
-            --primary-text: #3d2c1d; 
+            --primary-text: #3d2c1d;
             --secondary-text: #7a5f4a;
             --accent-color: #f1c40f; 
             --accent-hover: #e6b800;
             --error-color: #d9534f;
             --error-hover: #c9302c;
-            --success-color: #5cb85c; 
+            --success-color: #5cb85c;
             --success-hover: #4cae4c;
             --code-bg: #2d2d2d;
             --code-text: #f0f0f0;
@@ -40,7 +42,7 @@
             width: 100%;
             max-width: 1100px;
             background-color: var(--container-bg);
-            border-radius: 16px; 
+            border-radius: 16px;
             box-shadow: 0 8px 32px var(--shadow-color); 
             padding: 2.5rem;
             box-sizing: border-box;
@@ -114,7 +116,6 @@
             font-size: 1rem;
             cursor: pointer;
             transition: all 0.2s ease-in-out;
-            /* No box-shadow for a flat design */
         }
 
         .button:hover {
@@ -242,16 +243,69 @@
             background-color: var(--success-hover);
             transform: translateY(-2px);
         }
+        .page-icon {
+    display: block;
+    margin: 1rem auto 1.5rem; 
+    width: 100px; 
+    height: auto;
+}
+.about-section {
+    background-color: #fffcf5;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2.5rem;
+}
+
+.about-section h2, .about-section h3 {
+    color: var(--primary-text);
+    text-align: left;
+    margin-bottom: 0.75rem;
+}
+
+.about-section p, .about-section li {
+    color: var(--secondary-text);
+    line-height: 1.7;
+    text-align: left;
+}
+
+.about-section ul {
+    padding-left: 20px;
+    margin-top: 0;
+}
+
+.about-section li {
+    margin-bottom: 0.5rem;
+}
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🍌 Apelang Playground 🦍</h1>
+            <img src="apelang.png" alt="Apelang Icon" class="page-icon"> <p class="subtitle">
+
         <p class="subtitle">
             A <strong>simulated</strong> jungle for the Apelang language.
             Find the real tribe on <a href="https://github.com/duongddinh/apelang" target="_blank">GitHub</a>.
         </p>
+<div class="about-section">
+    <h2>Welcome to Apelang!</h2>
+    <p>
+        Welcome, fellow primates, to Apelang! Before there was Humanlang (you know, that fancy language with all the words and logic at humanlang), there was Apelang. This is where it all began, deep in the digital jungle, with grunts, gestures, and the occasional banana.
+    </p>
+    <p>
+        Apelang is a prehistoric programming language. Forget your high-level abstractions and complex frameworks; Apelang operates on pure, unadulterated primate instinct. It's simple, it's raw, and it's surprisingly effective for tasks that involve a lot of swinging, asking, and printing trees.
+    </p>
 
+    <h3>Features</h3>
+    <ul>
+        <li><strong>Primitive Data Types:</strong> We've got numbers (for counting bananas), booleans (for "yes banana" or "no banana"), and strings (for shouting "OOH-OOH-AAH-AAH!").</li>
+        <li><strong>Basic Arithmetic:</strong> Add, subtract, multiply, and divide. Because even a primate needs to know how many bananas are left after sharing.</li>
+        <li><strong>Control Flow:</strong> <code>if</code> (if banana, then eat), <code>swing</code> (loop, like swinging through trees), and <code>give</code> (return, like giving back a half-eaten banana).</li>
+        <li><strong>Functions (or "Tribes"):</strong> Organize your code into reusable "tribes" of instructions. Because a lone ape is a sad ape.</li>
+        <li><strong>Input/Output:</strong> <code>tree</code> (print, for showing off your banana count) and <code>ask</code> (for asking if anyone has more bananas).</li>
+    </ul>
+</div>
         <div class="code-section">
             <label for="codeInput">Scribble your Ape Code:</label>
             <textarea id="codeInput" class="code-input" placeholder="Type your Apelang code here...">
@@ -551,7 +605,7 @@ greet("Gorilla Gary")
 
             if (line.startsWith('give') || line === '}' || line === '{') return null;
             
-            if (currentIndex === originalIndex) { 
+            if (currentIndex === originalIndex) { // Only print error if it's a top-level line not handled
                 simulatePrint(`ERROR: Unrecognized statement: "${line}"`);
             }
 
