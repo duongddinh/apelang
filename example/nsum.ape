@@ -1,0 +1,17 @@
+tree "Enter a positive integer N to calculate the sum up to N:"
+ape n_value = ask()
+
+ape current_sum = 0
+
+ape current_number = 1
+
+swing n_value {
+    current_sum = current_sum ooh current_number
+
+    current_number = current_number ooh 1
+}
+
+tree "The sum of numbers from 1 to "
+tree n_value
+tree " is "
+tree current_sum
