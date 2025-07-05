@@ -1,4 +1,4 @@
-# 🍌 Apelang: The Primate's Programming Paradigm 
+# 🍌 Apelang: The Primate way of communication 
 
 🦍Welcome, fellow primates, to Apelang! Before there was Humanlang (you know, that fancy language with all the words and logic at [humanlang](https://github.com/duongddinh/humanlang)), there was Apelang. 
 This is where it all began, deep in the digital jungle, with grunts, gestures, and the occasional banana.
