@@ -1,0 +1,41 @@
+tree "Enter a non-negative integer N to find the Nth Fibonacci number:"
+ape n_value = ask()
+
+if n_value == 0 {
+    ape fib_result = 0
+    # Print the result and exit early for base case
+    tree "The Fibonacci number at position "
+    tree n_value
+    tree " is "
+    tree fib_result
+    give nil # Exit the program
+}
+
+if n_value == 1 {
+    ape fib_result = 1
+    # Print the result and exit early for base case
+    tree "The Fibonacci number at position "
+    tree n_value
+    tree " is "
+    tree fib_result
+    give nil # Exit the program
+}
+
+ape a = 0  # Represents F(i-2)
+ape b = 1  # Represents F(i-1)
+ape loop_count = n_value aah 1 # Calculate N-1
+
+swing loop_count {
+    ape next_fib = a ooh b # next_fib = F(i-2) + F(i-1)
+
+    a = b
+
+    b = next_fib
+}
+
+ape fib_result = b
+
+tree "The Fibonacci number at position "
+tree n_value
+tree " is "
+tree fib_result
