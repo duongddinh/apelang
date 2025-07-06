@@ -29,6 +29,7 @@ Forget your high-level abstractions and complex frameworks. Apelang operates on 
 + **Error Handling**: `tumble { ... } catch (err) { ... }`
 + **Interactive REPL**: A live, interactive shell for experimenting.
 + **Bytecode Disassembler**: Peek under the hood at the compiled ape bytecode.
++ **Package Manager**: `apebanana` for installing community modules.
 
 ---
 
@@ -66,6 +67,23 @@ The `install.sh` script:
 * Verifies installation
 
 After that, you can use `apeslang` anywhere in your terminal!
+
+---
+
+## 🍌 Banana Package Manager
+
+To make sharing and using code even easier, Apelang comes with a simple package manager called `apebanana`. It lets you fetch community-made modules directly from the [banana-modules repository](https://github.com/duongddinh/banana-modules).
+
+### Installing a Module
+
+You can install any available module from the tribe's collection. For example, to install a module for math utilities:
+
+```bash
+apebanana install max
+```
+
+This will download `max.ape` into your current directory. You can then use it in your code with the `summon` keyword
+
 
 ---
 
