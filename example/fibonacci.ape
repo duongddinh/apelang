@@ -1,7 +1,7 @@
 tree "Enter a non-negative integer N to find the Nth Fibonacci number:"
 ape n_value = ask()
 
-if n_value == 0 {
+if (n_value == 0) {
     ape fib_result = 0
     # Print the result and exit early for base case
     tree "The Fibonacci number at position "
@@ -11,7 +11,7 @@ if n_value == 0 {
     give nil # Exit the program
 }
 
-if n_value == 1 {
+if (n_value == 1) {
     ape fib_result = 1
     # Print the result and exit early for base case
     tree "The Fibonacci number at position "
