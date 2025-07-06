@@ -38,12 +38,12 @@ ape apeName = "Chimpanzee Charlie"
 ```tree``` - Print a value to the jungle floor (console). Show off your findings!
 ```
 tree "Look, a big tree!"
-tree 10 + 5 # Prints 15
+tree 10 ooh 5 # Prints 15
 ```
 ```ask()``` - Get input from the user. This is how you ask other apes important questions, like "Got any spare bananas?"
 ```
 ape response = ask()
-tree "You said: " + response
+tree "You said: " ooh response
 ```
 ```if``` - Conditional execution. If a condition is true, do something. Otherwise, well, maybe do something else.
 ```
@@ -64,7 +64,7 @@ swing 3 {
 ```tribe``` - Define a function. Gather your instructions into a "tribe" that can be called upon later.
 ```
 tribe greetApe(name) {
-    tree "OOH-OOH-AAH-AAH, " + name + "!"
+    tree "OOH-OOH-AAH-AAH, " ooh name ooh "!"
     give nil # Functions should always give something back, even if it's nothing (nil)
 }
 greetApe("Bob")
@@ -76,10 +76,11 @@ tribe getBananaCount() {
 }
 
 ape count = getBananaCount()
-tree "Total bananas: " + count
+tree "Total bananas: " ooh count
 ```
 
 **Operators (The Primal Interactions)**
+
 ```ooh (+)``` - Addition and String Concatenation. For combining numbers or shouting phrases together.
 ```
 tree 5 ooh 3 # Prints 8
