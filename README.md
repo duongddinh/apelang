@@ -23,8 +23,15 @@ Clone this ancient repository and Compile the Ape:
 git clone https://github.com/duongddinh/apelang.git
 cd apelang
 make
+
 ```
 
+Use globally
+
+```
+sudo mv apeslang /usr/local/bin
+
+```
 ## How to speak Ape
 Ready to master the grunts and gestures of Apelang?:
 
