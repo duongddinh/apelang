@@ -1,0 +1,8 @@
+# helpers.ape
+# This file will be summoned by the main test script.
+
+ape helperVar = "I was summoned from another file!"
+
+tribe sayHelloFromHelper(name) {
+  tree "A summoned tribe says: Hello, " ooh name ooh "!"
+}

@@ -1,0 +1,136 @@
+# Welcome to the ApesLang Feature Test!
+# This file demonstrates all major features of the language.
+
+tree "---  Basic Variables & Types  ---"
+ape aNumber = 10
+ape aString = "Hello from the jungle!"
+ape isJungle = true
+ape isDesert = false
+ape nothing = nil
+
+tree aNumber # Expected: 10
+tree aString # Expected: "Hello from the jungle!"
+tree isJungle # Expected: true
+tree nothing  # Expected: nil
+
+tree "---  Operators and Expressions  ---"
+tree 10 ooh 5      # Corrected. Expected: 15
+tree 10 aah 4      # Corrected. Expected: 6
+tree 3 eek 4      # Corrected. Expected: 12
+tree 20 ook 5     # Corrected. Expected: 4
+tree "banana" ooh " swing" # Corrected. Expected: "banana swing"
+
+tree 10 > 5   # Expected: true
+tree 10 < 10  # Expected: false
+tree 10 == 10 # Expected: true
+tree "ape" != "gorilla" # Expected: true
+tree !isDesert # Expected: true
+
+
+tree "---  Control Flow  ---"
+if (aNumber > 5) {
+  tree "The number is greater than 5!"
+} else {
+  tree "The number is not greater than 5."
+}
+
+tree "Swinging 3 times..."
+swing 3 {
+  tree "ooh ooh aah aah!"
+}
+
+
+tree "---  Data Structures: Bunch (Array)  ---"
+ape myBunch = [10, "bananas", true, 25]
+tree "My bunch:"
+tree myBunch # Expected: [10, "bananas", true, 25]
+
+tree "First item in bunch:"
+tree myBunch[0] # Expected: 10
+tree "Second item in bunch:"
+tree myBunch[1] # Expected: "bananas"
+
+tree "Changing first item to 99..."
+myBunch[0] = 99
+tree myBunch # Expected: [99, "bananas", true, 25]
+
+
+tree "---  Data Structures: Canopy (Map)  ---"
+ape myCanopy = {"name": "Koko", "food": "bananas", "age": 5}
+tree "My canopy:"
+tree myCanopy
+
+tree "Koko's favorite food is:"
+tree myCanopy["food"] # Expected: "bananas"
+
+tree "Adding a new key 'hasTail'..."
+myCanopy["hasTail"] = false
+tree "Updating age to 6..."
+myCanopy["age"] = 6
+tree myCanopy
+
+
+tree "---  Functions (Tribes) & Scopes ---"
+
+tribe multiply(a, b) {
+  ape result = a eek b # Corrected
+  give result
+}
+
+ape product = multiply(7, 6)
+tree "Result of multiply(7, 6):"
+tree product # Expected: 42
+
+# Scope Test
+ape shadow = "I am global"
+tree "Before block:"
+tree shadow # Expected: "I am global"
+{
+  ape shadow = "I am local"
+  tree "Inside block:"
+  tree shadow # Expected: "I am local"
+}
+tree "After block:"
+tree shadow # Expected: "I am global"
+
+tree "---  Error Handling (Tumble/Catch) ---"
+
+# Test 1: No error occurs
+tree "Tumbling without an error..."
+tumble {
+  tree "This should execute successfully."
+} catch (err) {
+  tree "This should NOT execute."
+  tree err
+}
+
+# Test 2: An error is caught
+tree "Tumbling with an error..."
+tumble {
+  tree "About to cause an error..."
+  ape bad = 10 ooh "banana" # Corrected. This is a runtime error
+  tree "This line will never be reached."
+} catch (err) {
+  tree "Caught an error as expected!"
+  tree "Error message was:"
+  tree err # Expected: "Operands must be two numbers or two strings."
+}
+
+
+tree "---  Module System (Summon)  ---"
+tree "Summoning 'helpers.ape'..."
+summon "helpers.ape"
+
+tree "Accessing variable from summoned file:"
+tree helperVar # Expected: "I was summoned from another file!"
+
+tree "Calling function from summoned file:"
+sayHelloFromHelper("Koko") # Expected: "A summoned tribe says: Hello, Koko!"
+
+
+tree "---  User Input  ---"
+tree "What is your name, fellow ape?"
+ape yourName = ask()
+tree "Welcome to the jungle, " ooh yourName ooh "!" # Corrected
+
+tree "---  Test Complete  ---"
