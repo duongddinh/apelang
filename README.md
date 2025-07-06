@@ -22,7 +22,7 @@ Forget your high-level abstractions and complex frameworks. Apelang operates on 
 + **Control Flow**: `if`, `else`, `swing` (loop), `give` (return)
 + **Functions**: `tribe` blocks with `give`
 + **Input/Output**: `tree` (print), `ask()` (input)
-+ **Arrays**: `bunch`es of values: `[1, "banana", true]`
++ **Arrays**: `bunch` of values: `[1, "banana", true]`
 + **Maps**: `canopy` key-value stores: `{"food": "banana"}`
 + **Modules**: `summon "helpers.ape"` to include external code
 + **Error Handling**: `tumble { ... } catch (err) { ... }`
