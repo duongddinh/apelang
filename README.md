@@ -19,13 +19,16 @@ Forget your high-level abstractions and complex frameworks. Apelang operates on 
 
 + **Primitive Data Types**: `number`, `string`, `boolean`, `nil`
 + **Arithmetic**: `ooh` (add), `aah` (subtract), `eek` (multiply), `ook` (divide)
-+ **Control Flow**: `if`, `else`, `swing` (loop), `give` (return)
++ **Control Flow**: `if`, `else`, `swing` (loop), `banana` (while-loop), `give` (return)
++ **Logical Operators**: `ripe` (and), `yellow` (or)
 + **Functions**: `tribe` blocks with `give`
 + **Input/Output**: `tree` (print), `ask()` (input)
 + **Arrays**: `bunch` of values: `[1, "banana", true]`
 + **Maps**: `canopy` key-value stores: `{"food": "banana"}`
 + **Modules**: `summon "helpers.ape"` to include external code
 + **Error Handling**: `tumble { ... } catch (err) { ... }`
++ **Interactive REPL**: A live, interactive shell for experimenting.
++ **Bytecode Disassembler**: Peek under the hood at the compiled ape bytecode.
 
 ---
 
@@ -75,6 +78,7 @@ After that, you can use `apeslang` anywhere in your terminal!
 * `ask()`: Get user input.
 * `if` / `else`: Conditional execution.
 * `swing`: Loop.
+* `banana`: A while loop that continues as long as a condition is true.
 * `tribe`: Define a function.
 * `give`: Return from a function.
 * `tumble` / `catch`: Try-catch-style error handling.
@@ -87,12 +91,55 @@ After that, you can use `apeslang` anywhere in your terminal!
 | `ooh`                   | Addition / Concat |
 | `aah`                   | Subtraction       |
 | `eek`                   | Multiplication    |
+|`ripe `                   | Logical AND       |
+|`yellow  `                | Logical OR        |
 | `ook`                   | Division          |
 | `==`                    | Equality          |
 | `!=`                    | Inequality        |
 | `<` / `<=` / `>` / `>=` | Comparisons       |
 
 ---
+
+## Developer Tools: REPL & Disassembler
+Apelang comes with powerful tools for interactive development and debugging.
+
+### Interactive REPL (Read-Eval-Print Loop)
+For quick experiments or learning the language, start Apelang in interactive mode. It keeps your variables in memory until you exit.
+```
+apeslang repl
+```
+You'll be greeted with a `>> prompt`.
+```
+Apeslang Interactive REPL. Type 'exit' to quit.
+>> ape x = 5
+>> tree x ooh 2
+7
+>> ape y = "hello"
+>> tree y ooh " ape"
+hello ape
+>> exit
+```
+### Bytecode Viewer (Disassembler)
+Ever wonder what your Ape-speak looks like to the machine? You can decompile your .apb files into a human-readable (and ape-commentated) format. This is great for debugging or understanding how the VM works.
+
+First, compile a file:
+```
+apeslang compile your_script.ape
+```
+Then, disassemble it:
+```
+apeslang disassemble your_script.apb
+```
+Example: A file containing tree 10 ooh 5 would produce:
+```
+== your_script.apb: The Ape Scrolls ==
+0000 OP_PUSH          NUMBER 10
+0009 OP_PUSH          NUMBER 5
+0018 OP_ADD           ; gather more bananas
+0019 OP_PRINT         ; ape screeches about bananas
+0020 OP_NIL           ; nil, the absence of bananas
+0021 OP_RETURN        ; ape returns to the tribe's canopy
+```
 
 ## Advanced Ape Knowledge
 
@@ -132,6 +179,7 @@ summon "helpers.ape"
 tree helperVar
 sayHelloFromHelper("Koko")
 ```
+
 
 ---
 
@@ -179,20 +227,32 @@ swing bananas {
 
 ---
 
-### 3. If/Else Foraging
+### 3. Banana Loop (While Loop)
+```
+ape bananas = 3
+banana (bananas > 0) {
+    tree "Still have " ooh bananas ooh " bananas left to eat."
+    bananas = bananas aah 1
+}
+tree "All bananas gone!"
+```
+---
 
-```ape
-ape weather = "rainy"
-if weather == "sunny" {
-  tree "Time to forage for berries!"
+### 4. If/Else Foraging with Logic
+```
+ape weather = "sunny"
+ape time = 14 # 2 PM
+
+if (weather == "sunny" ripe time > 12) {
+  tree "Good time to forage for berries!"
 } else {
-  tree "Stay in cave. Too wet for foraging."
+  tree "Stay in cave."
 }
 ```
 
 ---
 
-### 4. Wise Old Ape (Function)
+### 5. Wise Old Ape (Function)
 
 ```ape
 tribe wiseWords() {
@@ -204,7 +264,7 @@ wiseWords()
 
 ---
 
-### 5. Input
+### 6. Input
 
 ```ape
 tree "How many bananas do you have?"
@@ -260,8 +320,3 @@ Found a bug? Got a new banana idea? Fork and PR. We love more apes in the tribe!
 ---
 
 ## Good luck, and happy swinging! 
-
-```
-
-Let me know if you want this saved to a file, turned into a GitHub README, or translated into Spanish or Markdown-pdf!
-```
