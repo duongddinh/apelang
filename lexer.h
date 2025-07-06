@@ -40,6 +40,11 @@ typedef enum {
   TOKEN_TRIBE,  
   TOKEN_GIVE,  
 
+  TOKEN_BANANA,   
+  TOKEN_RIPE,     
+  TOKEN_YELLOW,  
+
+
   TOKEN_BUNCH,    //  array features
   TOKEN_CANOPY,   //  map features
   TOKEN_SUMMON,   //  importing files

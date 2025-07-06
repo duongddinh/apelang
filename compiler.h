@@ -3,7 +3,7 @@
 
 #include "common.h"
 
-int compile(const char* source, FILE* outFile);
+int compile(const char* source, FILE* outFile, bool isRepl);
 
 #endif 
 

@@ -6,6 +6,7 @@
 // The result of a VM execution
 typedef enum {
   VM_RESULT_OK,
+  VM_RESULT_COMPILE_ERROR,
   VM_RESULT_RUNTIME_ERROR
 } VMResult;
 
@@ -37,7 +38,7 @@ typedef struct {
     uint8_t* ip;
 
     Obj* objects; 
-    
+
     Value stack[STACK_MAX];
     Value* stackTop;
 
@@ -56,7 +57,9 @@ typedef struct {
     size_t nextGC;
 
 } VM;
-
+void initVM(VM* vm);
+void freeVM(VM* vm);
+VMResult interpret(VM* vm, const char* source);
 VMResult runBytecode(const char* path);
 
 #endif 

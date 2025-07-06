@@ -53,6 +53,8 @@ typedef enum {
     OP_TUMBLE_END,   //  try/catch
     OP_SUMMON,       //  modules
 
+    OP_LOOP,
+    
 } OpCode;
 
 

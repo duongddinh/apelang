@@ -1,8 +1,8 @@
 #include "common.h"
 #include "compiler.h"
 #include "vm.h"
+#include "debug.h"
 
-// Reads a file into a dynamically allocated string.
 static char* readFile(const char* path) {
   FILE* file = fopen(path, "rb");
   if (file == NULL) {
@@ -23,6 +23,27 @@ static char* readFile(const char* path) {
   return buffer;
 }
 
+static void runRepl() {
+    VM vm;
+    initVM(&vm); // Initialize the VM once for the whole session
+    char line[1024];
+    printf("Apeslang Interactive REPL. Type 'exit' to quit.\n");
+    for (;;) {
+        printf(">> ");
+        if (!fgets(line, sizeof(line), stdin)) {
+            printf("\n");
+            break;
+        }
+        if (strcmp(line, "exit\n") == 0) {
+            break;
+        }
+
+        // Interpret the line of code within the persistent VM
+        interpret(&vm, line);
+    }
+    freeVM(&vm); // Free the VM when the session ends
+}
+
 static void compileCommand(const char* sourcePath) {
   char outputPath[256];
   strncpy(outputPath, sourcePath, sizeof(outputPath) - 1);
@@ -36,16 +57,16 @@ static void compileCommand(const char* sourcePath) {
   printf("Compiling %s to %s...\n", sourcePath, outputPath);
   char* source = readFile(sourcePath);
   
-  // Open the output file to pass to the compiler
   FILE* outFile = fopen(outputPath, "wb");
   if (outFile == NULL) {
       fprintf(stderr, "Could not open output file \"%s\".\n", outputPath);
       exit(74);
   }
 
-  int success = compile(source, outFile);
+  // Pass 'false' for isRepl when compiling a file
+  int success = compile(source, outFile, false);
   free(source);
-  fclose(outFile); // Close the file handle
+  fclose(outFile);
 
   if (success) {
     printf("Compilation successful. 🦍🍌\n");
@@ -62,30 +83,63 @@ static void runCommand(const char* bytecodePath) {
   }
 
   VMResult result = runBytecode(bytecodePath);
-  if (result == VM_RESULT_OK) {
-  } else {
-    fprintf(stderr, "\nExecution failed due to an unhandled runtime error.\n");
+  if (result != VM_RESULT_OK) {
+    fprintf(stderr, "\nExecution failed.\n");
     exit(70);
   }
 }
 
+static void disassembleCommand(const char* path) {
+    if (strrchr(path, '.') == NULL || strcmp(strrchr(path, '.'), ".apb") != 0) {
+        fprintf(stderr, "Error: File for disassembly must have a .apb extension.\n");
+        exit(64);
+    }
+
+    FILE* file = fopen(path, "rb");
+    if (!file) {
+        fprintf(stderr, "Could not open file \"%s\".\n", path);
+        exit(74);
+    }
+
+    fseek(file, 0L, SEEK_END);
+    long fileSize = ftell(file);
+    rewind(file);
+
+    uint8_t* bytecode = (uint8_t*)malloc(fileSize);
+    if(bytecode == NULL) {
+        fprintf(stderr, "Not enough memory to read \"%s\".\n", path);
+        exit(74);
+    }
+
+    fread(bytecode, sizeof(uint8_t), fileSize, file);
+    fclose(file);
+
+    disassembleBytecode(path, bytecode, fileSize);
+    free(bytecode);
+}
+
 int main(int argc, const char* argv[]) {
-  if (argc < 3) {
+  if (argc < 2) {
     fprintf(stderr, "Usage:\n");
     fprintf(stderr, "  apeslang compile <file.ape>\n");
     fprintf(stderr, "  apeslang run <file.apb>\n");
+    fprintf(stderr, "  apeslang repl\n");
+    fprintf(stderr, "  apeslang disassemble <file.apb>\n");
     return 64;
   }
 
   const char* command = argv[1];
-  const char* path = argv[2];
 
-  if (strcmp(command, "compile") == 0) {
-    compileCommand(path);
-  } else if (strcmp(command, "run") == 0) {
-    runCommand(path);
+  if (strcmp(command, "compile") == 0 && argc == 3) {
+    compileCommand(argv[2]);
+  } else if (strcmp(command, "run") == 0 && argc == 3) {
+    runCommand(argv[2]);
+  } else if (strcmp(command, "repl") == 0 && argc == 2) {
+    runRepl();
+  } else if (strcmp(command, "disassemble") == 0 && argc == 3) {
+    disassembleCommand(argv[2]);
   } else {
-    fprintf(stderr, "Unknown command '%s'.\n", command);
+    fprintf(stderr, "Unknown command or incorrect number of arguments.\n");
     return 64;
   }
 

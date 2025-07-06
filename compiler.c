@@ -23,13 +23,14 @@ typedef struct {
   bool hadError;
   FILE* outFile;
   Compiler* compiler;
+  bool isRepl; // Flag to indicate if we are in REPL mode
 } Parser;
 
 typedef enum {
   PREC_NONE,
   PREC_ASSIGNMENT,
-  PREC_OR,
-  PREC_AND,
+  PREC_YELLOW,      // Logical OR
+  PREC_RIPE,        // Logical AND
   PREC_EQUALITY,
   PREC_COMPARISON,
   PREC_TERM,
@@ -62,10 +63,14 @@ static void summonStatement(Parser* p);
 static void tumbleStatement(Parser* p);
 static void funDeclaration(Parser* p);
 static void varDeclaration(Parser* p);
-
+static void consume(Parser* p, TokenType type, const char* message);
 static void beginScope(Parser* p);
 static void endScope(Parser* p);
 static void declareVariable(Parser* p);
+static void bananaStatement(Parser* p);
+static void ripe_(Parser* p, bool canAssign);
+static void yellow_(Parser* p, bool canAssign);
+static void expressionStatement(Parser* p);
 
 static void errorAt(Parser* p, Token* token, const char* message) {
   if (p->hadError) return;
@@ -103,6 +108,46 @@ static void patchJump(Parser* p, long offset) {
 static void emitAddress(Parser* p, uint32_t address) {
   fwrite(&address, sizeof(uint32_t), 1, p->outFile);
 }
+
+static void emitLoop(Parser* p, long loopStart) {
+    emitByte(p, OP_LOOP);
+
+    long offset = ftell(p->outFile) - loopStart + 2;
+     if (offset > UINT16_MAX) {
+        error(p, "Loop body too large.");
+    }
+    emitByte(p, (offset >> 8) & 0xff);
+    emitByte(p, offset & 0xff);
+}
+static void ripe_(Parser* p, bool canAssign) {
+    long endJump = emitJump(p, OP_JUMP_IF_FALSE);
+    emitByte(p, OP_POP);
+    parsePrecedence(p, PREC_RIPE);
+    patchJump(p, endJump);
+}
+
+static void yellow_(Parser* p, bool canAssign) {
+    long elseJump = emitJump(p, OP_JUMP_IF_FALSE);
+    long endJump = emitJump(p, OP_JUMP);
+    patchJump(p, elseJump);
+    emitByte(p, OP_POP);
+    parsePrecedence(p, PREC_YELLOW);
+    patchJump(p, endJump);
+}
+static void bananaStatement(Parser* p) {
+    long loopStart = ftell(p->outFile);
+    consume(p, TOKEN_LPAREN, "Expect '(' after 'banana'.");
+    expression(p);
+    consume(p, TOKEN_RPAREN, "Expect ')' after banana condition.");
+    consume(p, TOKEN_LBRACE, "Expect '{' after banana condition.");
+    long exitJump = emitJump(p, OP_JUMP_IF_FALSE);
+    emitByte(p, OP_POP);
+    block(p);
+    emitLoop(p, loopStart);
+    patchJump(p, exitJump);
+    emitByte(p, OP_POP);
+}
+
 static void emitReturn(Parser* p) {
   emitByte(p, OP_NIL);
   emitByte(p, OP_RETURN);
@@ -267,6 +312,9 @@ ParseRule rules[] = {
     [TOKEN_DIV]         = {NULL, binary, PREC_FACTOR},
     [TOKEN_SUMMON]      = {NULL, NULL, PREC_NONE},
     [TOKEN_TUMBLE]      = {NULL, NULL, PREC_NONE},
+    [TOKEN_BANANA]      = {NULL, NULL, PREC_NONE},
+    [TOKEN_RIPE]        = {NULL, ripe_, PREC_RIPE},     
+    [TOKEN_YELLOW]      = {NULL, yellow_, PREC_YELLOW},
     [TOKEN_CATCH]       = {NULL, NULL, PREC_NONE},
     [TOKEN_ERROR]       = {NULL, NULL, PREC_NONE},
 };
@@ -298,25 +346,32 @@ static void printStatement(Parser* p) {
   expression(p);
   emitByte(p, OP_PRINT);
 }
+
 static void expressionStatement(Parser* p) {
   expression(p);
-  emitByte(p, OP_POP);
+  // In REPL mode, print the result of an expression statement.
+  // Otherwise, pop it off the stack.
+  emitByte(p, p->isRepl ? OP_PRINT : OP_POP);
 }
+
 static void ifStatement(Parser* p) {
+  consume(p, TOKEN_LPAREN, "Expect '(' after 'if'.");
   expression(p);
+  consume(p, TOKEN_RPAREN, "Expect ')' after if condition.");
+  consume(p, TOKEN_LBRACE, "Expect '{' after condition.");
   long thenJump = emitJump(p, OP_JUMP_IF_FALSE);
   emitByte(p, OP_POP);
-  consume(p, TOKEN_LBRACE, "Expect '{' after if condition.");
   block(p);
   long elseJump = emitJump(p, OP_JUMP);
   patchJump(p, thenJump);
   emitByte(p, OP_POP);
   if (match(p, TOKEN_ELSE)) {
-    consume(p, TOKEN_LBRACE, "Expect '{' after else.");
+    consume(p, TOKEN_LBRACE, "Expect '{' after 'else'.");
     block(p);
   }
   patchJump(p, elseJump);
 }
+
 static void swingStatement(Parser* p) {
   expression(p);
   emitByte(p, OP_LOOP_START);
@@ -337,26 +392,20 @@ static void giveStatement(Parser* p) {
 
 static void tumbleStatement(Parser* p) {
     consume(p, TOKEN_LBRACE, "Expect '{' after 'tumble'.");
-
     long catchJump = emitJump(p, OP_TUMBLE_SETUP);
     block(p);
     emitByte(p, OP_TUMBLE_END);
-
     long exitJump = emitJump(p, OP_JUMP);
     patchJump(p, catchJump);
-    
     consume(p, TOKEN_CATCH, "Expect 'catch' after 'tumble' block.");
     consume(p, TOKEN_LPAREN, "Expect '(' after 'catch'.");
-    
     beginScope(p);
     consume(p, TOKEN_ID, "Expect error variable name.");
     declareVariable(p);
-    
     consume(p, TOKEN_RPAREN, "Expect ')' after error variable.");
     consume(p, TOKEN_LBRACE, "Expect '{' after catch clause.");
     block(p);
     endScope(p);
-
     patchJump(p, exitJump);
 }
 
@@ -379,7 +428,11 @@ static void statement(Parser* p) {
     summonStatement(p);
   } else if (match(p, TOKEN_SWING)) {
     swingStatement(p);
-  } else if (match(p, TOKEN_LBRACE)) {
+  }
+  else if (match(p, TOKEN_BANANA)) {
+    bananaStatement(p);
+  }
+   else if (match(p, TOKEN_LBRACE)) {
     beginScope(p);
     block(p);
     endScope(p);
@@ -466,15 +519,12 @@ static void funDeclaration(Parser* p) {
   consume(p, TOKEN_ID, "Expect function name.");
   Token name = p->previous;
   declareVariable(p);
-
   long bodyJump = emitJump(p, OP_JUMP);
   long bodyStart = ftell(p->outFile);
-
   Compiler compiler;
   initCompiler(&compiler, p->compiler);
   p->compiler = &compiler;
   beginScope(p);
-
   int arity = 0;
   consume(p, TOKEN_LPAREN, "Expect '(' after function name.");
   if (!check(p, TOKEN_RPAREN)) {
@@ -489,10 +539,8 @@ static void funDeclaration(Parser* p) {
   consume(p, TOKEN_LBRACE, "Expect '{' before function body.");
   block(p);
   emitReturn(p);
-
   p->compiler = p->compiler->enclosing;
   patchJump(p, bodyJump);
-
   emitByte(p, OP_PUSH);
   emitByte(p, VAL_OBJ);
   emitByte(p, OBJ_FUNCTION);
@@ -501,7 +549,6 @@ static void funDeclaration(Parser* p) {
   uint8_t nameLen = (uint8_t)name.length;
   emitByte(p, nameLen);
   fwrite(name.start, sizeof(char), nameLen, p->outFile);
-
   if (p->compiler->scopeDepth == 0) {
     emitByte(p, OP_SET_GLOBAL);
     uint8_t len = (uint8_t)name.length;
@@ -544,11 +591,12 @@ static void declaration(Parser* p) {
   }
 }
 
-int compile(const char* source, FILE* outFile) {
+int compile(const char* source, FILE* outFile, bool isRepl) {
   Parser p;
   p.hadError = false;
   initLexer(&p.lexer, source);
   p.outFile = outFile;
+  p.isRepl = isRepl; // Set the REPL flag in the parser
   if (p.outFile == NULL) return 0;
 
   Compiler compiler;
@@ -560,6 +608,10 @@ int compile(const char* source, FILE* outFile) {
     declaration(&p);
     if (p.hadError) break;
   }
-  emitReturn(&p);
+  
+
+      emitReturn(&p);
+  
+
   return !p.hadError;
 }

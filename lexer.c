@@ -82,7 +82,15 @@ static TokenType identifierType(Lexer* lexer) {
       }
       break;
     case 'b':
-      return checkKeyword(lexer, 1, 4, "unch", TOKEN_BUNCH);
+         if (lexer->current - lexer->start > 1) {
+            switch (lexer->start[1]) {
+               case 'a':
+                   return checkKeyword(lexer, 2, 4, "nana", TOKEN_BANANA);
+               case 'u':
+                   return checkKeyword(lexer, 2, 3, "nch", TOKEN_BUNCH);
+            }
+         }
+        break;
     case 'c':
       if (lexer->current - lexer->start > 1) {
         switch (lexer->start[1]) {
@@ -153,6 +161,12 @@ static TokenType identifierType(Lexer* lexer) {
         }
       }
       break;
+      case 'r': 
+        return checkKeyword(lexer, 1, 3, "ipe", TOKEN_RIPE);
+
+      case 'y':
+        return checkKeyword(lexer, 1, 5, "ellow", TOKEN_YELLOW);
+
   }
   return TOKEN_ID;
 }
