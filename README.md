@@ -52,6 +52,7 @@ sudo mv apeslang /usr/local/bin
 OR, even easier:
 
 ```bash
+chmod +x install.sh
 ./install.sh
 ```
 
