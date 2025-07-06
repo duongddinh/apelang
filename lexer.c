@@ -67,7 +67,6 @@ static TokenType checkKeyword(Lexer* lexer, int start, int length,
   return TOKEN_ID;
 }
 
-// Updated to recognize 'tribe' and 'give'
 static TokenType identifierType(Lexer* lexer) {
   switch (lexer->start[0]) {
     case 'a':
@@ -79,6 +78,26 @@ static TokenType identifierType(Lexer* lexer) {
             return checkKeyword(lexer, 2, 1, "h", TOKEN_MINUS);
           case 's':
             return checkKeyword(lexer, 2, 1, "k", TOKEN_ASK);
+        }
+      }
+      break;
+    case 'b':
+      return checkKeyword(lexer, 1, 4, "unch", TOKEN_BUNCH);
+    case 'c':
+      if (lexer->current - lexer->start > 1) {
+        switch (lexer->start[1]) {
+          case 'a':  // For words starting with "ca"
+            if (lexer->current - lexer->start > 2) {
+              switch (lexer->start[2]) {
+                case 'n':
+                  return checkKeyword(lexer, 3, 3, "opy",
+                                      TOKEN_CANOPY);  // "canopy"
+                case 't':
+                  return checkKeyword(lexer, 3, 2, "ch",
+                                      TOKEN_CATCH);  // "catch"
+              }
+            }
+            break;
         }
       }
       break;
@@ -95,7 +114,7 @@ static TokenType identifierType(Lexer* lexer) {
     case 'f':
       return checkKeyword(lexer, 1, 4, "alse", TOKEN_FALSE);
     case 'g':
-      return checkKeyword(lexer, 1, 3, "ive", TOKEN_GIVE);  // New: give
+      return checkKeyword(lexer, 1, 3, "ive", TOKEN_GIVE);
     case 'i':
       return checkKeyword(lexer, 1, 1, "f", TOKEN_IF);
     case 'n':
@@ -107,7 +126,15 @@ static TokenType identifierType(Lexer* lexer) {
       }
       break;
     case 's':
-      return checkKeyword(lexer, 1, 4, "wing", TOKEN_SWING);
+      if (lexer->current - lexer->start > 1) {
+        switch (lexer->start[1]) {
+          case 'w':
+            return checkKeyword(lexer, 2, 3, "ing", TOKEN_SWING);
+          case 'u':
+            return checkKeyword(lexer, 2, 4, "mmon", TOKEN_SUMMON);
+        }
+      }
+      break;
     case 't':
       if (lexer->current - lexer->start > 1) {
         switch (lexer->start[1]) {
@@ -118,9 +145,11 @@ static TokenType identifierType(Lexer* lexer) {
               if (lexer->start[2] == 'u')
                 return checkKeyword(lexer, 3, 1, "e", TOKEN_TRUE);
               if (lexer->start[2] == 'i')
-                return checkKeyword(lexer, 3, 2, "be",
-                                    TOKEN_TRIBE);  
+                return checkKeyword(lexer, 3, 2, "be", TOKEN_TRIBE);
             }
+            break;
+          case 'u':
+            return checkKeyword(lexer, 2, 4, "mble", TOKEN_TUMBLE);
         }
       }
       break;
@@ -172,6 +201,12 @@ Token scanToken(Lexer* lexer) {
       return makeToken(lexer, TOKEN_LBRACE);
     case '}':
       return makeToken(lexer, TOKEN_RBRACE);
+    case '[':
+      return makeToken(lexer, TOKEN_LBRACKET);
+    case ']':
+      return makeToken(lexer, TOKEN_RBRACKET);
+    case ':':
+      return makeToken(lexer, TOKEN_COLON);
     case ',':
       return makeToken(lexer, TOKEN_COMMA);
     case '!':

@@ -3,9 +3,7 @@
 
 #include "common.h"
 
-// Compiles source code from a .ape file and writes bytecode to a .apb file.
-// Returns 1 on success, 0 on failure.
-int compile(const char* source, const char* outputPath);
+int compile(const char* source, FILE* outFile);
 
-#endif // APE_COMPILER_H
+#endif 
 

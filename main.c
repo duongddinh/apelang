@@ -35,9 +35,17 @@ static void compileCommand(const char* sourcePath) {
 
   printf("Compiling %s to %s...\n", sourcePath, outputPath);
   char* source = readFile(sourcePath);
+  
+  // Open the output file to pass to the compiler
+  FILE* outFile = fopen(outputPath, "wb");
+  if (outFile == NULL) {
+      fprintf(stderr, "Could not open output file \"%s\".\n", outputPath);
+      exit(74);
+  }
 
-  int success = compile(source, outputPath);
+  int success = compile(source, outFile);
   free(source);
+  fclose(outFile); // Close the file handle
 
   if (success) {
     printf("Compilation successful. 🦍🍌\n");
@@ -56,7 +64,7 @@ static void runCommand(const char* bytecodePath) {
   VMResult result = runBytecode(bytecodePath);
   if (result == VM_RESULT_OK) {
   } else {
-    fprintf(stderr, "Execution failed due to a runtime error.\n");
+    fprintf(stderr, "\nExecution failed due to an unhandled runtime error.\n");
     exit(70);
   }
 }

@@ -10,7 +10,11 @@ typedef enum {
   TOKEN_LBRACE,
   TOKEN_RBRACE,
   TOKEN_COMMA, 
-  // One or two character tokens
+
+  TOKEN_LBRACKET, 
+  TOKEN_RBRACKET, 
+  TOKEN_COLON,    
+
   TOKEN_EQUAL,
   TOKEN_EQUAL_EQUAL,
   TOKEN_BANG,
@@ -35,6 +39,13 @@ typedef enum {
   TOKEN_ASK,
   TOKEN_TRIBE,  
   TOKEN_GIVE,  
+
+  TOKEN_BUNCH,    //  array features
+  TOKEN_CANOPY,   //  map features
+  TOKEN_SUMMON,   //  importing files
+  TOKEN_TUMBLE,   //  try-catch blocks
+  TOKEN_CATCH,    //  try-catch blocks
+
   // Apelang specific math operators
   TOKEN_PLUS,
   TOKEN_MINUS,
@@ -59,4 +70,4 @@ typedef struct {
 void initLexer(Lexer* lexer, const char* source);
 Token scanToken(Lexer* lexer);
 
-#endif  
+#endif

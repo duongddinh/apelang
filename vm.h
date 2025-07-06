@@ -12,6 +12,7 @@ typedef enum {
 #define STACK_MAX 256
 #define MEMORY_MAX 256
 #define FRAMES_MAX 64 // Maximum recursion depth
+#define HANDLER_MAX 16 // Max nested tumble blocks
 
 typedef struct {
     ObjFunction* function;
@@ -26,20 +27,33 @@ typedef struct {
 } Variable;
 
 typedef struct {
+    uint8_t* catchIp;     // Instruction pointer of the catch block
+    int frameCount;       // Which call frame this handler belongs to
+    Value* stackTop;      // The stack pointer to restore to
+} TryHandler;
+
+typedef struct {
     uint8_t* bytecode;
     uint8_t* ip;
 
+    Obj* objects; 
+    
     Value stack[STACK_MAX];
     Value* stackTop;
 
     CallFrame frames[FRAMES_MAX];
     int frameCount;
 
+    TryHandler tryHandlers[HANDLER_MAX];
+    int tryHandlerCount;
+
     double loop_counters[STACK_MAX];
     int loop_counter_top;
 
     Variable variables[MEMORY_MAX];
     int variableCount;
+    size_t bytesAllocated;
+    size_t nextGC;
 
 } VM;
 

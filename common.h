@@ -1,12 +1,14 @@
 #ifndef APE_COMMON_H
 #define APE_COMMON_H
 
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <stdbool.h>
-#include <stdint.h>
+
 
 typedef enum {
     // Constants, Literals
@@ -41,12 +43,26 @@ typedef enum {
     // Functions
     OP_CALL,
     OP_RETURN,
+
+    OP_BUILD_BUNCH,    //  arrays/lists
+    OP_BUILD_CANOPY,   //  maps/dictionaries
+    OP_GET_SUBSCRIPT,  
+    OP_SET_SUBSCRIPT,  
+
+    OP_TUMBLE_SETUP, //  try/catch
+    OP_TUMBLE_END,   //  try/catch
+    OP_SUMMON,       //  modules
+
 } OpCode;
 
 
 typedef struct Obj Obj;
 typedef struct ObjString ObjString;
 typedef struct ObjFunction ObjFunction;
+
+typedef struct ObjBunch ObjBunch;
+typedef struct ObjCanopy ObjCanopy;
+
 
 typedef enum { VAL_BOOL, VAL_NIL, VAL_NUMBER, VAL_OBJ } ValueType;
 typedef struct {
@@ -69,10 +85,17 @@ typedef struct {
 typedef enum {
     OBJ_STRING,
     OBJ_FUNCTION,
+
+    OBJ_BUNCH,
+    OBJ_CANOPY,
 } ObjType;
 
 struct Obj {
     ObjType type;
+
+    bool isMarked; 
+    struct Obj* next;  
+
 };
 
 struct ObjString {
@@ -87,13 +110,40 @@ struct ObjFunction {
     int arity;
     uint8_t* code;
     ObjString* name;
+
+    bool isModule;
 };
+
+struct ObjBunch { // Arrays/Lists
+    Obj obj;
+    int count;
+    int capacity;
+    Value* values;
+};
+
+typedef struct { // Map Entries
+    Value key;
+    Value value;
+} CanopyEntry;
+
+struct ObjCanopy { // Maps/Dictionaries
+    Obj obj;
+    int count;
+    int capacity;
+    CanopyEntry* entries;
+};
+
 
 #define OBJ_TYPE(value)   (AS_OBJ(value)->type)
 #define IS_STRING(value)  (IS_OBJ(value) && OBJ_TYPE(value) == OBJ_STRING)
 #define IS_FUNCTION(value) (IS_OBJ(value) && OBJ_TYPE(value) == OBJ_FUNCTION)
+#define IS_BUNCH(value)   (IS_OBJ(value) && OBJ_TYPE(value) == OBJ_BUNCH)
+#define IS_CANOPY(value)  (IS_OBJ(value) && OBJ_TYPE(value) == OBJ_CANOPY)
+
 #define AS_STRING(value)  ((ObjString*)AS_OBJ(value))
 #define AS_CSTRING(value) (((ObjString*)AS_OBJ(value))->chars)
 #define AS_FUNCTION(value) ((ObjFunction*)AS_OBJ(value))
+#define AS_BUNCH(value)   ((ObjBunch*)AS_OBJ(value))
+#define AS_CANOPY(value)  ((ObjCanopy*)AS_OBJ(value))
 
-#endif 
+#endif

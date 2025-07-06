@@ -9,7 +9,6 @@ typedef struct {
   int depth;
 } Local;
 
-//  Compiler state for managing scopes 
 typedef struct Compiler {
   struct Compiler* enclosing;
   Local locals[256];
@@ -17,7 +16,6 @@ typedef struct Compiler {
   int scopeDepth;
 } Compiler;
 
-// Parser holds a pointer to the current compiler 
 typedef struct {
   Lexer lexer;
   Token current;
@@ -40,7 +38,9 @@ typedef enum {
   PREC_CALL,
   PREC_PRIMARY
 } Precedence;
+
 typedef void (*ParseFn)(Parser*, bool);
+
 typedef struct {
   ParseFn prefix;
   ParseFn infix;
@@ -55,6 +55,17 @@ static void parsePrecedence(Parser* p, Precedence precedence);
 static void block(Parser* p);
 static void variable(Parser* p, bool canAssign);
 static void call(Parser* p, bool canAssign);
+static void bunchLiteral(Parser* p, bool canAssign);
+static void canopyLiteral(Parser* p, bool canAssign);
+static void subscript(Parser* p, bool canAssign);
+static void summonStatement(Parser* p);
+static void tumbleStatement(Parser* p);
+static void funDeclaration(Parser* p);
+static void varDeclaration(Parser* p);
+
+static void beginScope(Parser* p);
+static void endScope(Parser* p);
+static void declareVariable(Parser* p);
 
 static void errorAt(Parser* p, Token* token, const char* message) {
   if (p->hadError) return;
@@ -68,7 +79,6 @@ static void errorAt(Parser* p, Token* token, const char* message) {
   fprintf(stderr, ": %s\n", message);
 }
 static void error(Parser* p, const char* message) { errorAt(p, &p->previous, message); }
-
 static void emitByte(Parser* p, uint8_t byte) { fwrite(&byte, sizeof(uint8_t), 1, p->outFile); }
 static void emitBytes(Parser* p, uint8_t byte1, uint8_t byte2) {
   emitByte(p, byte1);
@@ -97,7 +107,6 @@ static void emitReturn(Parser* p) {
   emitByte(p, OP_NIL);
   emitByte(p, OP_RETURN);
 }
-
 static void advance(Parser* p) {
   p->previous = p->current;
   p->current = scanToken(&p->lexer);
@@ -136,17 +145,10 @@ static void string(Parser* p, bool canAssign) {
 }
 static void literal(Parser* p, bool canAssign) {
   switch (p->previous.type) {
-    case TOKEN_FALSE:
-      emitByte(p, OP_FALSE);
-      break;
-    case TOKEN_TRUE:
-      emitByte(p, OP_TRUE);
-      break;
-    case TOKEN_NIL:
-      emitByte(p, OP_NIL);
-      break;
-    default:
-      return;
+    case TOKEN_FALSE: emitByte(p, OP_FALSE); break;
+    case TOKEN_TRUE:  emitByte(p, OP_TRUE); break;
+    case TOKEN_NIL:   emitByte(p, OP_NIL); break;
+    default: return;
   }
 }
 static void unary(Parser* p, bool canAssign) {
@@ -159,38 +161,17 @@ static void binary(Parser* p, bool canAssign) {
   ParseRule* rule = getRule(operatorType);
   parsePrecedence(p, (Precedence)(rule->precedence + 1));
   switch (operatorType) {
-    case TOKEN_PLUS:
-      emitByte(p, OP_ADD);
-      break;
-    case TOKEN_MINUS:
-      emitByte(p, OP_SUB);
-      break;
-    case TOKEN_MUL:
-      emitByte(p, OP_MUL);
-      break;
-    case TOKEN_DIV:
-      emitByte(p, OP_DIV);
-      break;
-    case TOKEN_EQUAL_EQUAL:
-      emitByte(p, OP_EQUAL);
-      break;
-    case TOKEN_BANG_EQUAL:
-      emitBytes(p, OP_EQUAL, OP_NOT);
-      break;
-    case TOKEN_GREATER:
-      emitByte(p, OP_GREATER);
-      break;
-    case TOKEN_GREATER_EQUAL:
-      emitBytes(p, OP_LESS, OP_NOT);
-      break;
-    case TOKEN_LESS:
-      emitByte(p, OP_LESS);
-      break;
-    case TOKEN_LESS_EQUAL:
-      emitBytes(p, OP_GREATER, OP_NOT);
-      break;
-    default:
-      return;
+    case TOKEN_PLUS:          emitByte(p, OP_ADD); break;
+    case TOKEN_MINUS:         emitByte(p, OP_SUB); break;
+    case TOKEN_MUL:           emitByte(p, OP_MUL); break;
+    case TOKEN_DIV:           emitByte(p, OP_DIV); break;
+    case TOKEN_EQUAL_EQUAL:   emitByte(p, OP_EQUAL); break;
+    case TOKEN_BANG_EQUAL:    emitBytes(p, OP_EQUAL, OP_NOT); break;
+    case TOKEN_GREATER:       emitByte(p, OP_GREATER); break;
+    case TOKEN_GREATER_EQUAL: emitBytes(p, OP_LESS, OP_NOT); break;
+    case TOKEN_LESS:          emitByte(p, OP_LESS); break;
+    case TOKEN_LESS_EQUAL:    emitBytes(p, OP_GREATER, OP_NOT); break;
+    default: return;
   }
 }
 static void grouping(Parser* p, bool canAssign) {
@@ -218,33 +199,76 @@ static void call(Parser* p, bool canAssign) {
   uint8_t argCount = argumentList(p);
   emitBytes(p, OP_CALL, argCount);
 }
+static void bunchLiteral(Parser* p, bool canAssign) {
+    uint8_t itemCount = 0;
+    if (!check(p, TOKEN_RBRACKET)) {
+        do {
+            expression(p);
+            if (itemCount == 255) error(p, "Can't have more than 255 items in a bunch literal.");
+            itemCount++;
+        } while (match(p, TOKEN_COMMA));
+    }
+    consume(p, TOKEN_RBRACKET, "Expect ']' after bunch items.");
+    emitBytes(p, OP_BUILD_BUNCH, itemCount);
+}
+static void canopyLiteral(Parser* p, bool canAssign) {
+    uint8_t itemCount = 0;
+    if (!check(p, TOKEN_RBRACE)) {
+        do {
+            consume(p, TOKEN_STRING, "Expect string as canopy key.");
+            string(p, false);
+            consume(p, TOKEN_COLON, "Expect ':' after canopy key.");
+            expression(p);
+            if (itemCount == 255) error(p, "Can't have more than 255 items in a canopy literal.");
+            itemCount++;
+        } while (match(p, TOKEN_COMMA));
+    }
+    consume(p, TOKEN_RBRACE, "Expect '}' after canopy items.");
+    emitBytes(p, OP_BUILD_CANOPY, itemCount);
+}
+static void subscript(Parser* p, bool canAssign) {
+    expression(p);
+    consume(p, TOKEN_RBRACKET, "Expect ']' after subscript.");
+    if (canAssign && match(p, TOKEN_EQUAL)) {
+        expression(p);
+        emitByte(p, OP_SET_SUBSCRIPT);
+    } else {
+        emitByte(p, OP_GET_SUBSCRIPT);
+    }
+}
 
 ParseRule rules[] = {
-    [TOKEN_LPAREN] = {grouping, call, PREC_CALL},
-    [TOKEN_RPAREN] = {NULL, NULL, PREC_NONE},
-    [TOKEN_LBRACE] = {NULL, NULL, PREC_NONE},
-    [TOKEN_RBRACE] = {NULL, NULL, PREC_NONE},
-    [TOKEN_COMMA] = {NULL, NULL, PREC_NONE},
-    [TOKEN_BANG] = {unary, NULL, PREC_NONE},
-    [TOKEN_BANG_EQUAL] = {NULL, binary, PREC_EQUALITY},
-    [TOKEN_EQUAL] = {NULL, NULL, PREC_NONE},
+    [TOKEN_LPAREN]      = {grouping, call, PREC_CALL},
+    [TOKEN_RPAREN]      = {NULL, NULL, PREC_NONE},
+    [TOKEN_LBRACE]      = {canopyLiteral, NULL, PREC_NONE},
+    [TOKEN_RBRACE]      = {NULL, NULL, PREC_NONE},
+    [TOKEN_LBRACKET]    = {bunchLiteral, subscript, PREC_CALL},
+    [TOKEN_RBRACKET]    = {NULL, NULL, PREC_NONE},
+    [TOKEN_COLON]       = {NULL, NULL, PREC_NONE},
+    [TOKEN_COMMA]       = {NULL, NULL, PREC_NONE},
+    [TOKEN_BANG]        = {unary, NULL, PREC_NONE},
+    [TOKEN_BANG_EQUAL]  = {NULL, binary, PREC_EQUALITY},
+    [TOKEN_EQUAL]       = {NULL, NULL, PREC_NONE},
     [TOKEN_EQUAL_EQUAL] = {NULL, binary, PREC_EQUALITY},
-    [TOKEN_GREATER] = {NULL, binary, PREC_COMPARISON},
+    [TOKEN_GREATER]     = {NULL, binary, PREC_COMPARISON},
     [TOKEN_GREATER_EQUAL] = {NULL, binary, PREC_COMPARISON},
-    [TOKEN_LESS] = {NULL, binary, PREC_COMPARISON},
-    [TOKEN_LESS_EQUAL] = {NULL, binary, PREC_COMPARISON},
-    [TOKEN_ID] = {variable, NULL, PREC_NONE},
-    [TOKEN_STRING] = {string, NULL, PREC_NONE},
-    [TOKEN_NUM] = {number, NULL, PREC_NONE},
-    [TOKEN_ASK] = {ask, NULL, PREC_NONE},
-    [TOKEN_FALSE] = {literal, NULL, PREC_NONE},
-    [TOKEN_TRUE] = {literal, NULL, PREC_NONE},
-    [TOKEN_NIL] = {literal, NULL, PREC_NONE},
-    [TOKEN_PLUS] = {NULL, binary, PREC_TERM},
-    [TOKEN_MINUS] = {NULL, binary, PREC_TERM},
-    [TOKEN_MUL] = {NULL, binary, PREC_FACTOR},
-    [TOKEN_DIV] = {NULL, binary, PREC_FACTOR},
-    [TOKEN_ERROR] = {NULL, NULL, PREC_NONE},
+    [TOKEN_LESS]        = {NULL, binary, PREC_COMPARISON},
+    [TOKEN_LESS_EQUAL]  = {NULL, binary, PREC_COMPARISON},
+    [TOKEN_ID]          = {variable, NULL, PREC_NONE},
+    [TOKEN_STRING]      = {string, NULL, PREC_NONE},
+    [TOKEN_NUM]         = {number, NULL, PREC_NONE},
+    [TOKEN_ASK]         = {ask, NULL, PREC_NONE},
+    [TOKEN_FALSE]       = {literal, NULL, PREC_NONE},
+    [TOKEN_TRUE]        = {literal, NULL, PREC_NONE},
+    [TOKEN_NIL]         = {literal, NULL, PREC_NONE},
+    [TOKEN_PLUS]        = {NULL, binary, PREC_TERM},
+    [TOKEN_MINUS]       = {NULL, binary, PREC_TERM},
+    [TOKEN_MUL]         = {NULL, binary, PREC_FACTOR},
+    [TOKEN_DIV]         = {NULL, binary, PREC_FACTOR},
+    [TOKEN_SUMMON]      = {NULL, NULL, PREC_NONE},
+    [TOKEN_TUMBLE]      = {NULL, NULL, PREC_NONE},
+    [TOKEN_CATCH]       = {NULL, NULL, PREC_NONE},
+    [TOKEN_ERROR]       = {NULL, NULL, PREC_NONE},
 };
 
 static ParseRule* getRule(TokenType type) { return &rules[type]; }
@@ -264,59 +288,12 @@ static void parsePrecedence(Parser* p, Precedence precedence) {
   }
 }
 static void expression(Parser* p) { parsePrecedence(p, PREC_ASSIGNMENT); }
-
-static void initCompiler(Compiler* compiler, Compiler* enclosing) {
-  compiler->enclosing = enclosing;
-  compiler->localCount = 0;
-  compiler->scopeDepth = 0;
-  // The first slot is claimed for the function itself for internal use.
-  Local* local = &compiler->locals[compiler->localCount++];
-  local->depth = 0;
-  local->name.start = "";
-  local->name.length = 0;
-}
-static void beginScope(Parser* p) { p->compiler->scopeDepth++; }
-static void endScope(Parser* p) {
-  p->compiler->scopeDepth--;
-  while (p->compiler->localCount > 0 &&
-         p->compiler->locals[p->compiler->localCount - 1].depth > p->compiler->scopeDepth) {
-    emitByte(p, OP_POP);
-    p->compiler->localCount--;
+static void block(Parser* p) {
+  while (!check(p, TOKEN_RBRACE) && !check(p, TOKEN_EOF)) {
+    declaration(p);
   }
+  consume(p, TOKEN_RBRACE, "Expect '}' after block.");
 }
-static int resolveLocal(Compiler* compiler, Token* name) {
-  for (int i = compiler->localCount - 1; i >= 0; i--) {
-    Local* local = &compiler->locals[i];
-    if (name->length == local->name.length &&
-        memcmp(name->start, local->name.start, name->length) == 0) {
-      return i;
-    }
-  }
-  return -1;
-}
-static void addLocal(Parser* p, Token name) {
-  if (p->compiler->localCount == 256) {
-    error(p, "Too many local variables in function.");
-    return;
-  }
-  Local* local = &p->compiler->locals[p->compiler->localCount++];
-  local->name = name;
-  local->depth = p->compiler->scopeDepth;
-}
-static void declareVariable(Parser* p) {
-  if (p->compiler->scopeDepth == 0) return;
-  Token* name = &p->previous;
-  for (int i = p->compiler->localCount - 1; i >= 0; i--) {
-    Local* local = &p->compiler->locals[i];
-    if (local->depth != -1 && local->depth < p->compiler->scopeDepth) break;
-    if (name->length == local->name.length &&
-        memcmp(name->start, local->name.start, name->length) == 0) {
-      error(p, "Already a variable with this name in this scope.");
-    }
-  }
-  addLocal(p, *name);
-}
-
 static void printStatement(Parser* p) {
   expression(p);
   emitByte(p, OP_PRINT);
@@ -324,12 +301,6 @@ static void printStatement(Parser* p) {
 static void expressionStatement(Parser* p) {
   expression(p);
   emitByte(p, OP_POP);
-}
-static void block(Parser* p) {
-  while (!check(p, TOKEN_RBRACE) && !check(p, TOKEN_EOF)) {
-    declaration(p);
-  }
-  consume(p, TOKEN_RBRACE, "Expect '}' after block.");
 }
 static void ifStatement(Parser* p) {
   expression(p);
@@ -363,6 +334,116 @@ static void giveStatement(Parser* p) {
     emitByte(p, OP_RETURN);
   }
 }
+
+static void tumbleStatement(Parser* p) {
+    consume(p, TOKEN_LBRACE, "Expect '{' after 'tumble'.");
+
+    long catchJump = emitJump(p, OP_TUMBLE_SETUP);
+    block(p);
+    emitByte(p, OP_TUMBLE_END);
+
+    long exitJump = emitJump(p, OP_JUMP);
+    patchJump(p, catchJump);
+    
+    consume(p, TOKEN_CATCH, "Expect 'catch' after 'tumble' block.");
+    consume(p, TOKEN_LPAREN, "Expect '(' after 'catch'.");
+    
+    beginScope(p);
+    consume(p, TOKEN_ID, "Expect error variable name.");
+    declareVariable(p);
+    
+    consume(p, TOKEN_RPAREN, "Expect ')' after error variable.");
+    consume(p, TOKEN_LBRACE, "Expect '{' after catch clause.");
+    block(p);
+    endScope(p);
+
+    patchJump(p, exitJump);
+}
+
+static void summonStatement(Parser* p) {
+    consume(p, TOKEN_STRING, "Expect file path string after 'summon'.");
+    string(p, false);
+    emitByte(p, OP_SUMMON);
+}
+
+static void statement(Parser* p) {
+  if (match(p, TOKEN_TREE)) {
+    printStatement(p);
+  } else if (match(p, TOKEN_GIVE)) {
+    giveStatement(p);
+  } else if (match(p, TOKEN_IF)) {
+    ifStatement(p);
+  } else if (match(p, TOKEN_TUMBLE)) {
+    tumbleStatement(p);
+  } else if (match(p, TOKEN_SUMMON)) {
+    summonStatement(p);
+  } else if (match(p, TOKEN_SWING)) {
+    swingStatement(p);
+  } else if (match(p, TOKEN_LBRACE)) {
+    beginScope(p);
+    block(p);
+    endScope(p);
+  } else {
+    expressionStatement(p);
+  }
+}
+
+static void initCompiler(Compiler* compiler, Compiler* enclosing) {
+  compiler->enclosing = enclosing;
+  compiler->localCount = 0;
+  compiler->scopeDepth = 0;
+  Local* local = &compiler->locals[compiler->localCount++];
+  local->depth = 0;
+  local->name.start = "";
+  local->name.length = 0;
+}
+
+static void beginScope(Parser* p) { p->compiler->scopeDepth++; }
+
+static void endScope(Parser* p) {
+  p->compiler->scopeDepth--;
+  while (p->compiler->localCount > 0 &&
+         p->compiler->locals[p->compiler->localCount - 1].depth > p->compiler->scopeDepth) {
+    emitByte(p, OP_POP);
+    p->compiler->localCount--;
+  }
+}
+
+static int resolveLocal(Compiler* compiler, Token* name) {
+  for (int i = compiler->localCount - 1; i >= 0; i--) {
+    Local* local = &compiler->locals[i];
+    if (name->length == local->name.length &&
+        memcmp(name->start, local->name.start, name->length) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+static void addLocal(Parser* p, Token name) {
+  if (p->compiler->localCount == 256) {
+    error(p, "Too many local variables in function.");
+    return;
+  }
+  Local* local = &p->compiler->locals[p->compiler->localCount++];
+  local->name = name;
+  local->depth = p->compiler->scopeDepth;
+}
+
+static void declareVariable(Parser* p) {
+  if (p->compiler->scopeDepth == 0) return;
+  Token* name = &p->previous;
+  for (int i = p->compiler->localCount - 1; i >= 0; i--) {
+    Local* local = &p->compiler->locals[i];
+    if (local->depth != -1 && local->depth < p->compiler->scopeDepth) break;
+    if (name->length == local->name.length &&
+        memcmp(name->start, local->name.start, name->length) == 0) {
+      error(p, "Already a variable with this name in this scope.");
+    }
+  }
+  addLocal(p, *name);
+}
+
 static void varDeclaration(Parser* p) {
   consume(p, TOKEN_ID, "Expect variable name.");
   Token name = p->previous;
@@ -377,35 +458,8 @@ static void varDeclaration(Parser* p) {
     uint8_t len = (uint8_t)name.length;
     emitByte(p, len);
     fwrite(name.start, sizeof(char), len, p->outFile);
+    emitByte(p, OP_POP);
   }
-}
-
-static void function(Parser* p, Token* funcName) {
-  Compiler compiler;
-  initCompiler(&compiler, p->compiler);
-  p->compiler = &compiler;
-  beginScope(p);
-
-  int arity = 0;
-  consume(p, TOKEN_LPAREN, "Expect '(' after function name.");
-  if (!check(p, TOKEN_RPAREN)) {
-    do {
-      arity++;
-      if (arity > 255) error(p, "Can't have more than 255 parameters.");
-      consume(p, TOKEN_ID, "Expect parameter name.");
-      declareVariable(p);
-    } while (match(p, TOKEN_COMMA));
-  }
-  consume(p, TOKEN_RPAREN, "Expect ')' after parameters.");
-  consume(p, TOKEN_LBRACE, "Expect '{' before function body.");
-  block(p);
-
-  emitReturn(p);
-
-  emitByte(p, OP_PUSH);
-  emitByte(p, VAL_OBJ);
-  emitByte(p, OBJ_FUNCTION);
-  emitByte(p, (uint8_t)arity);
 }
 
 static void funDeclaration(Parser* p) {
@@ -436,10 +490,9 @@ static void funDeclaration(Parser* p) {
   block(p);
   emitReturn(p);
 
-  p->compiler = p->compiler->enclosing;  // Restore outer compiler
+  p->compiler = p->compiler->enclosing;
   patchJump(p, bodyJump);
 
-  // Now emit the object creation code
   emitByte(p, OP_PUSH);
   emitByte(p, VAL_OBJ);
   emitByte(p, OBJ_FUNCTION);
@@ -479,23 +532,7 @@ static void variable(Parser* p, bool canAssign) {
     fwrite(name.start, sizeof(char), len, p->outFile);
   }
 }
-static void statement(Parser* p) {
-  if (match(p, TOKEN_TREE)) {
-    printStatement(p);
-  } else if (match(p, TOKEN_GIVE)) {
-    giveStatement(p);
-  } else if (match(p, TOKEN_IF)) {
-    ifStatement(p);
-  } else if (match(p, TOKEN_SWING)) {
-    swingStatement(p);
-  } else if (match(p, TOKEN_LBRACE)) {
-    beginScope(p);
-    block(p);
-    endScope(p);
-  } else {
-    expressionStatement(p);
-  }
-}
+
 static void declaration(Parser* p) {
   if (p->hadError) return;
   if (match(p, TOKEN_TRIBE)) {
@@ -506,11 +543,12 @@ static void declaration(Parser* p) {
     statement(p);
   }
 }
-int compile(const char* source, const char* outputPath) {
+
+int compile(const char* source, FILE* outFile) {
   Parser p;
   p.hadError = false;
   initLexer(&p.lexer, source);
-  p.outFile = fopen(outputPath, "wb");
+  p.outFile = outFile;
   if (p.outFile == NULL) return 0;
 
   Compiler compiler;
@@ -522,6 +560,6 @@ int compile(const char* source, const char* outputPath) {
     declaration(&p);
     if (p.hadError) break;
   }
-  fclose(p.outFile);
+  emitReturn(&p);
   return !p.hadError;
 }
