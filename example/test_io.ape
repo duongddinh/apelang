@@ -1,0 +1,42 @@
+
+tree "-> Starting File I/O Test..."
+
+ape scrollPath = "scroll.txt"
+ape wisdom = "The juiciest mango is always at the highest branch."
+ape success = inscribe(scrollPath, wisdom)
+
+if (success) {
+    tree "  SUCCESS: Inscribed wisdom to 'scroll.txt'."
+} else {
+    tree "  FAILURE: Could not inscribe 'scroll.txt'!"
+}
+
+tree "-> Foraging for the scroll's wisdom..."
+ape foragedWisdom = forage(scrollPath)
+
+if (foragedWisdom == nil) {
+    tree "  FAILURE: Could not find the scroll or it was empty."
+} else {
+    tree "  SUCCESS: Found wisdom in scroll. It says:"
+    tree foragedWisdom
+}
+
+
+
+tree "-> Starting Stats Generation Test..."
+
+ape myBunch = [1, "two", true, [3, 4]]
+ape myCanopy = {"name": "Koko", "bananas": 50}
+tree "  Allocated a bunch and a canopy."
+
+tribe recursiveClimb(height) {
+    if (height > 0) {
+        give recursiveClimb(height aah 1)
+    }
+    give "Reached the top!"
+}
+
+tree "-> Testing stack depth with a recursive climb to height 5..."
+recursiveClimb(5) 
+
+tree "-> Test complete. Check the final stats report after this program exits."

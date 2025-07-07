@@ -55,6 +55,10 @@ typedef enum {
 
     OP_LOOP,
     
+    // File I/O
+    OP_FORAGE,
+    OP_INSCRIBE,
+
 } OpCode;
 
 

@@ -44,6 +44,7 @@ typedef struct {
 
     CallFrame frames[FRAMES_MAX];
     int frameCount;
+    int maxFrameCount;
 
     TryHandler tryHandlers[HANDLER_MAX];
     int tryHandlerCount;
@@ -53,13 +54,18 @@ typedef struct {
 
     Variable variables[MEMORY_MAX];
     int variableCount;
+
+    // Stats
     size_t bytesAllocated;
     size_t nextGC;
+    long objectsAllocated;
+    int gcCycles;
 
 } VM;
+
 void initVM(VM* vm);
 void freeVM(VM* vm);
 VMResult interpret(VM* vm, const char* source);
-VMResult runBytecode(const char* path);
+VMResult runBytecode(VM* vm, const char* path);
 
-#endif 
+#endif

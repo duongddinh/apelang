@@ -1,0 +1,14 @@
+summon "math.ape"
+
+
+ape a = 6
+ape b = 3
+tree "Testing max(4, 6):"
+tree max(a, b)                
+
+tree min(a, b)                
+
+tree is_odd(a)                 
+tree is_even(a)                 
+
+tree power(2,5)

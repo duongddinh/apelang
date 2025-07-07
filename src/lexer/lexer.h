@@ -50,6 +50,8 @@ typedef enum {
   TOKEN_SUMMON,   //  importing files
   TOKEN_TUMBLE,   //  try-catch blocks
   TOKEN_CATCH,    //  try-catch blocks
+  TOKEN_FORAGE,
+  TOKEN_INSCRIBE,
 
   // Apelang specific math operators
   TOKEN_PLUS,

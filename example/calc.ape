@@ -1,0 +1,55 @@
+# Calculator App for JordyOS, written in ApeLang
+
+tree "ApeLang Calculator"
+tree "Enter 0 to quit."
+
+swing 999999999 {
+  tree ""
+  tree "Operation: 1=add, 2=sub, 3=mul, 4=div"
+  ape op = ask()
+
+  if (op == 0) {
+    give
+  }
+
+  tree "First number:"
+  ape a = ask()
+
+  tree "Second number:"
+  ape b = ask()
+
+  # Use a variable to track if we should print the result
+  ape printResult = 1 # true
+
+  ape result = 0
+  if (op == 1) {
+    ape result = a ooh b
+  } else {
+    if (op == 2) {
+      ape result = a aah b
+    } else {
+      if (op == 3) {
+        ape result = a eek b
+      } else {
+        if (op == 4) {
+          if (b == 0) {
+            tree "Error: Division by zero."
+            ape printResult = 0 # false
+          } else {
+            ape result = a ook b
+          }
+        } else {
+          tree "Unknown operation."
+          ape printResult = 0 # false
+        }
+      }
+    }
+  }
+
+  if (printResult == 1) {
+    tree "Result:"
+    tree result
+  }
+}
+
+tree "Calculator finished."

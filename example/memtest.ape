@@ -1,0 +1,5 @@
+tree "-> Attempting to trigger GC by allocating many objects..."
+swing (100000) {
+    ape temp = "banana" ooh "split" ooh "sundae"
+}
+tree "  Allocation loop finished."

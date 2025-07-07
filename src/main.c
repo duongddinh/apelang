@@ -9,6 +9,7 @@ static int processedCount = 0;
 static char* readFile(const char* path);
 char** findDependencies(const char* source, int* count);
 void compileWithDependencies(const char* ape_path);
+static void printVmStats(VM* vm);
 
 bool hasBeenProcessed(const char* path) {
     for (int i = 0; i < processedCount; i++) {
@@ -111,7 +112,7 @@ char** findDependencies(const char* source, int* count) {
         if (token.type == TOKEN_SUMMON) {
             Token pathToken = scanToken(&lexer);
             if (pathToken.type == TOKEN_STRING) {
-                // Extract the path from the string literal (e.g., "math.ape" -> math.ape)
+                // Extract the path from the string literal 
                 int len = pathToken.length - 2;
                 char* path = malloc(len + 1);
                 strncpy(path, pathToken.start + 1, len);
@@ -146,6 +147,15 @@ static char* readFile(const char* path) {
   return buffer;
 }
 
+static void printVmStats(VM* vm) {
+    printf("\n-- Apelang Stats --\n");
+    printf("Memory: %zu bytes\n", vm->bytesAllocated);
+    printf("Stack Depth: %d\n", vm->maxFrameCount);
+    printf("Allocated Objects: %ld\n", vm->objectsAllocated);
+    printf("GC Cycles: %d\n", vm->gcCycles);
+    printf("-------------------\n");
+}
+
 static void runRepl() {
     VM vm;
     initVM(&vm); // Initialize the VM once for the whole session
@@ -164,6 +174,7 @@ static void runRepl() {
         // Interpret the line of code within the persistent VM
         interpret(&vm, line);
     }
+    printVmStats(&vm);
     freeVM(&vm); // Free the VM when the session ends
 }
 
@@ -186,7 +197,7 @@ static void compileCommand(const char* sourcePath) {
       exit(74);
   }
 
-  // Pass 'false' for isRepl when compiling a file
+  // Pass false for isRepl when compiling a file
   int success = compile(source, outFile, false);
   free(source);
   fclose(outFile);
@@ -205,7 +216,14 @@ static void runCommand(const char* bytecodePath) {
     exit(64);
   }
 
-  VMResult result = runBytecode(bytecodePath);
+  VM vm;
+  initVM(&vm);
+
+  VMResult result = runBytecode(&vm, bytecodePath);
+
+  printVmStats(&vm);
+  freeVM(&vm);
+
   if (result != VM_RESULT_OK) {
     fprintf(stderr, "\nExecution failed.\n");
     exit(70);

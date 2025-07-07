@@ -29,6 +29,11 @@ static void freeObject(VM* vm, Obj* object);
 
 static void* reallocate(VM* vm, void* pointer, size_t oldSize, size_t newSize) {
   vm->bytesAllocated += newSize - oldSize;
+  
+  if (oldSize == 0 && newSize > 0) {
+      vm->objectsAllocated++;
+  }
+
   if (newSize > oldSize) {
     if (vm->bytesAllocated > vm->nextGC) {
       collectGarbage(vm);
@@ -43,22 +48,38 @@ static void* reallocate(VM* vm, void* pointer, size_t oldSize, size_t newSize) {
   return result;
 }
 
-static char* readFile(const char* path) {
-  FILE* file = fopen(path, "rb");
-  if (file == NULL) return NULL;
-  fseek(file, 0L, SEEK_END);
-  size_t fileSize = ftell(file);
-  rewind(file);
-  char* buffer = (char*)malloc(fileSize + 1);
-  if (buffer == NULL) {
-    fprintf(stderr, "Not enough memory to read \"%s\".\n", path);
-    exit(74);
-  }
-  size_t bytesRead = fread(buffer, sizeof(char), fileSize, file);
-  buffer[bytesRead] = '\0';
-  fclose(file);
-  return buffer;
+static char* readTextFile(const char* path) {
+    FILE* file = fopen(path, "rb");
+    if (file == NULL) return NULL;
+
+    fseek(file, 0L, SEEK_END);
+    size_t fileSize = ftell(file);
+    rewind(file);
+
+    char* buffer = (char*)malloc(fileSize + 1);
+    if (buffer == NULL) {
+        fprintf(stderr, "Not enough memory to read \"%s\".\n", path);
+        fclose(file);
+        return NULL;
+    }
+
+    size_t bytesRead = fread(buffer, sizeof(char), fileSize, file);
+    buffer[bytesRead] = '\0';
+    fclose(file);
+    return buffer;
 }
+
+static bool writeTextFile(const char* path, const char* content) {
+    FILE* file = fopen(path, "w");
+    if (file == NULL) {
+        return false;
+    }
+    size_t contentLength = strlen(content);
+    size_t bytesWritten = fwrite(content, sizeof(char), contentLength, file);
+    fclose(file);
+    return bytesWritten == contentLength;
+}
+
 
 static uint32_t hashString(const char* key, int length) {
   uint32_t hash = 2166136261u;
@@ -173,6 +194,11 @@ static bool call(VM* vm, ObjFunction* function, int argCount) {
     runtimeError(vm, "Stack overflow!");
     return false;
   }
+
+  if (vm->frameCount + 1 > vm->maxFrameCount) {
+      vm->maxFrameCount = vm->frameCount + 1;
+  }
+
   CallFrame* frame = &vm->frames[vm->frameCount++];
   frame->function = function;
 
@@ -283,6 +309,7 @@ static void sweep(VM* vm) {
 }
 
 void collectGarbage(VM* vm) {
+  vm->gcCycles++;
   markRoots(vm);
   sweep(vm);
   vm->nextGC = vm->bytesAllocated * GC_HEAP_GROW_FACTOR;
@@ -409,31 +436,37 @@ VMResult run(VM* vm) {
         BINARY_OP(BOOL_VAL, <);
         break;
       case OP_ADD: {
-        Value b = vm->stackTop[-1];
-        Value a = vm->stackTop[-2];
-        if (IS_NUMBER(a) && IS_NUMBER(b)) {
-          vm->stackTop -= 2;
-          *vm->stackTop++ = NUMBER_VAL(AS_NUMBER(a) + AS_NUMBER(b));
-        } else if (IS_STRING(a) && IS_STRING(b)) {
-          vm->stackTop -= 2;
-          int lenA = AS_STRING(a)->length;
-          int lenB = AS_STRING(b)->length;
-          int newLen = lenA + lenB;
-          size_t newSize = sizeof(ObjString) + newLen + 1;
-          ObjString* newString = (ObjString*)reallocate(vm, NULL, 0, newSize);
-          newString->obj.type = OBJ_STRING;
-          newString->length = newLen;
-          newString->chars = (char*)(newString + 1);
-          memcpy(newString->chars, AS_CSTRING(a), lenA);
-          memcpy(newString->chars + lenA, AS_CSTRING(b), lenB);
-          newString->chars[newLen] = '\0';
-          newString->hash = hashString(newString->chars, newLen);
-          newString->obj.isMarked = false;
-          newString->obj.next = vm->objects;
-          vm->objects = (Obj*)newString;
-          *vm->stackTop++ = OBJ_VAL(newString);
+        if (IS_NUMBER(vm->stackTop[-1]) && IS_NUMBER(vm->stackTop[-2])) {
+            double b = AS_NUMBER(*--vm->stackTop);
+            double a = AS_NUMBER(*--vm->stackTop);
+            *vm->stackTop++ = NUMBER_VAL(a + b);
+        } else if (IS_STRING(vm->stackTop[-1]) && IS_STRING(vm->stackTop[-2])) {
+            // Peek at the stack, don't pop. This keeps them safe from the GC.
+            ObjString* b = AS_STRING(vm->stackTop[-1]);
+            ObjString* a = AS_STRING(vm->stackTop[-2]);
+
+            int length = a->length + b->length;
+            size_t size = sizeof(ObjString) + length + 1;
+            
+            // Allocation might trigger GC. 'a' and 'b' are safe on the stack.
+            ObjString* result = (ObjString*)reallocate(vm, NULL, 0, size);
+            result->obj.type = OBJ_STRING;
+            result->length = length;
+            result->chars = (char*)(result + 1);
+            memcpy(result->chars, a->chars, a->length);
+            memcpy(result->chars + a->length, b->chars, b->length);
+            result->chars[length] = '\0';
+            
+            result->hash = hashString(result->chars, length);
+            result->obj.isMarked = false;
+            result->obj.next = vm->objects;
+            vm->objects = (Obj*)result;
+
+            // Now that the new string is created, pop the operands and push the result.
+            vm->stackTop -= 2;
+            *vm->stackTop++ = OBJ_VAL(result);
         } else {
-          RUNTIME_ERROR("Operands must be two numbers or two strings.");
+            RUNTIME_ERROR("Operands must be two numbers or two strings.");
         }
         break;
       }
@@ -688,6 +721,46 @@ VMResult run(VM* vm) {
       case OP_TUMBLE_END:
         vm->tryHandlerCount--;
         break;
+      case OP_FORAGE: {
+        Value pathValue = *--vm->stackTop;
+        if (!IS_STRING(pathValue)) {
+            RUNTIME_ERROR("'forage' path must be a string.");
+        }
+        char* path = AS_CSTRING(pathValue);
+        char* content = readTextFile(path);
+
+        if (content == NULL) {
+            *vm->stackTop++ = NIL_VAL; // Push nil on failure
+        } else {
+            int len = strlen(content);
+            size_t size = sizeof(ObjString) + len + 1;
+            ObjString* obj = (ObjString*)reallocate(vm, NULL, 0, size);
+            obj->obj.type = OBJ_STRING;
+            obj->length = len;
+            obj->chars = (char*)(obj + 1);
+            memcpy(obj->chars, content, len + 1);
+            obj->hash = hashString(obj->chars, len);
+            obj->obj.isMarked = false;
+            obj->obj.next = vm->objects;
+            vm->objects = (Obj*)obj;
+            *vm->stackTop++ = OBJ_VAL(obj);
+            free(content);
+        }
+        break;
+      }
+      case OP_INSCRIBE: {
+        Value contentValue = *--vm->stackTop;
+        Value pathValue = *--vm->stackTop;
+        if (!IS_STRING(pathValue) || !IS_STRING(contentValue)) {
+            RUNTIME_ERROR("'inscribe' arguments must be strings.");
+        }
+        char* path = AS_CSTRING(pathValue);
+        char* content = AS_CSTRING(contentValue);
+
+        bool success = writeTextFile(path, content);
+        *vm->stackTop++ = BOOL_VAL(success);
+        break;
+      }
        case OP_SUMMON: {
         Value pathValue = *--vm->stackTop;
         if (!IS_STRING(pathValue)) {
@@ -831,6 +904,10 @@ void initVM(VM* vm) {
   vm->bytesAllocated = 0;
   vm->nextGC = 1024 * 1024;
   vm->bytecode = NULL;
+
+  vm->maxFrameCount = 0;
+  vm->objectsAllocated = 0;
+  vm->gcCycles = 0;
 }
 
 void freeVM(VM* vm) {
@@ -873,6 +950,10 @@ VMResult interpret(VM* vm, const char* source) {
 
   *vm->stackTop++ = OBJ_VAL(function);
   call(vm, function, 0);
+  
+  if (vm->frameCount > vm->maxFrameCount) {
+      vm->maxFrameCount = vm->frameCount;
+  }
 
   VMResult result = run(vm);
   fclose(mem_file);
@@ -880,30 +961,29 @@ VMResult interpret(VM* vm, const char* source) {
   return result;
 }
 
-VMResult runBytecode(const char* path) {
+VMResult runBytecode(VM* vm, const char* path) {
   FILE* file = fopen(path, "rb");
   if (!file) {
     fprintf(stderr, "Could not open file \"%s\".\n", path);
     return VM_RESULT_RUNTIME_ERROR;
   }
-  VM vm = {0};
-  initVM(&vm);
+
   fseek(file, 0L, SEEK_END);
   long fileSize = ftell(file);
   rewind(file);
-  vm.bytecode = (uint8_t*)malloc(fileSize + 1);
-  if (vm.bytecode == NULL) exit(74);
-  fread(vm.bytecode, sizeof(uint8_t), fileSize, file);
+  vm->bytecode = (uint8_t*)malloc(fileSize + 1);
+  if (vm->bytecode == NULL) exit(74);
+  fread(vm->bytecode, sizeof(uint8_t), fileSize, file);
   fclose(file);
-  vm.bytecode[fileSize] = 255;
+  vm->bytecode[fileSize] = 255;
 
   ObjFunction* topLevelFunc =
-      (ObjFunction*)reallocate(&vm, NULL, 0, sizeof(ObjFunction));
+      (ObjFunction*)reallocate(vm, NULL, 0, sizeof(ObjFunction));
   memset(topLevelFunc, 0, sizeof(ObjFunction));
   topLevelFunc->obj.type = OBJ_FUNCTION;
   topLevelFunc->arity = 0;
   
-  topLevelFunc->code = vm.bytecode;
+  topLevelFunc->code = vm->bytecode;
   topLevelFunc->owner = NULL;
   topLevelFunc->code_offset = 0;
   topLevelFunc->isModule = false; 
@@ -911,7 +991,7 @@ VMResult runBytecode(const char* path) {
   const char* script_name_literal = "script";
   int name_len = strlen(script_name_literal);
   size_t nameSize = sizeof(ObjString) + name_len + 1;
-  ObjString* nameString = (ObjString*)reallocate(&vm, NULL, 0, nameSize);
+  ObjString* nameString = (ObjString*)reallocate(vm, NULL, 0, nameSize);
   nameString->obj.type = OBJ_STRING;
   nameString->length = name_len;
   nameString->chars = (char*)(nameString + 1);
@@ -919,19 +999,23 @@ VMResult runBytecode(const char* path) {
   topLevelFunc->name = nameString;
 
   topLevelFunc->obj.isMarked = false;
-  topLevelFunc->obj.next = vm.objects;
-  vm.objects = (Obj*)topLevelFunc;
+  topLevelFunc->obj.next = vm->objects;
+  vm->objects = (Obj*)topLevelFunc;
   nameString->obj.isMarked = false;
-  nameString->obj.next = vm.objects;
-  vm.objects = (Obj*)nameString;
-  vm.frameCount = 1;
-  CallFrame* frame = &vm.frames[0];
+  nameString->obj.next = vm->objects;
+  vm->objects = (Obj*)nameString;
+  vm->frameCount = 1;
+
+  if (vm->frameCount > vm->maxFrameCount) {
+      vm->maxFrameCount = vm->frameCount;
+  }
+
+  CallFrame* frame = &vm->frames[0];
   frame->function = topLevelFunc;
-  frame->ip = vm.bytecode;
-  frame->slots = vm.stack;
+  frame->ip = vm->bytecode;
+  frame->slots = vm->stack;
   printf("🌴 🦍  OOH-OOH-AAH-AAH!  WELCOME TO THE BANANA JUNGLE  🦍 🌴\n");
   printf("ApesLang VM Output\n");
-  VMResult result = run(&vm);
-  freeVM(&vm);
+  VMResult result = run(vm);
   return result;
 }

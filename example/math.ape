@@ -1,0 +1,58 @@
+tribe power(base, exp) {
+    if (exp < 0) {
+        tree "Error: power() does not support negative exponents."
+        give nil
+    }
+    if (exp == 0) {
+        give 1
+    }
+    
+    ape result = 1
+    swing exp {
+        result = result eek base
+    }
+    give result
+}
+
+tribe abs(n) {
+    if (n < 0) {
+        give n eek 1
+    }
+    give n
+}
+
+tribe max(a, b) {
+    if (a > b) {
+        give a
+    }
+    give b
+}
+
+tribe min(a, b) {
+    if (a < b) {
+        give a
+    }
+    give b
+}
+
+tribe is_even(n) {
+    if (n == 0) { give true }
+    ape temp = abs(n)
+    banana(temp > 1) {
+        temp = temp aah 2
+    }
+
+    if (temp == 0) {
+        give true
+    }
+    give false
+}
+
+tribe is_odd(n) {
+    if (is_even(n)) {
+        give false
+    }
+    give true
+}
+
+tree "math.ape module loaded. Ready for calculations!"

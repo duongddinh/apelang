@@ -120,11 +120,23 @@ static TokenType identifierType(Lexer* lexer) {
       }
       break;
     case 'f':
-      return checkKeyword(lexer, 1, 4, "alse", TOKEN_FALSE);
+        if (lexer->current - lexer->start > 1) {
+            switch (lexer->start[1]) {
+                case 'a': return checkKeyword(lexer, 2, 3, "lse", TOKEN_FALSE);
+                case 'o': return checkKeyword(lexer, 2, 4, "rage", TOKEN_FORAGE);
+            }
+        }
+        break;
     case 'g':
       return checkKeyword(lexer, 1, 3, "ive", TOKEN_GIVE);
     case 'i':
-      return checkKeyword(lexer, 1, 1, "f", TOKEN_IF);
+        if (lexer->current - lexer->start > 1) {
+            switch (lexer->start[1]) {
+                case 'f': return checkKeyword(lexer, 2, 0, "", TOKEN_IF);
+                case 'n': return checkKeyword(lexer, 2, 6, "scribe", TOKEN_INSCRIBE);
+            }
+        }
+        break;
     case 'n':
       return checkKeyword(lexer, 1, 2, "il", TOKEN_NIL);
     case 'o':

@@ -71,6 +71,9 @@ static void bananaStatement(Parser* p);
 static void ripe_(Parser* p, bool canAssign);
 static void yellow_(Parser* p, bool canAssign);
 static void expressionStatement(Parser* p);
+static void forage(Parser* p, bool canAssign);
+static void inscribe(Parser* p, bool canAssign);
+
 
 static void errorAt(Parser* p, Token* token, const char* message) {
   if (p->hadError) return;
@@ -228,6 +231,23 @@ static void ask(Parser* p, bool canAssign) {
   consume(p, TOKEN_RPAREN, "Expect ')' after ask arguments.");
   emitByte(p, OP_ASK);
 }
+
+static void forage(Parser* p, bool canAssign) {
+    consume(p, TOKEN_LPAREN, "Expect '(' after 'forage'.");
+    expression(p); // The path
+    consume(p, TOKEN_RPAREN, "Expect ')' after forage arguments.");
+    emitByte(p, OP_FORAGE);
+}
+
+static void inscribe(Parser* p, bool canAssign) {
+    consume(p, TOKEN_LPAREN, "Expect '(' after 'inscribe'.");
+    expression(p); // The path
+    consume(p, TOKEN_COMMA, "Expect ',' between path and content.");
+    expression(p); // The content
+    consume(p, TOKEN_RPAREN, "Expect ')' after inscribe arguments.");
+    emitByte(p, OP_INSCRIBE);
+}
+
 static uint8_t argumentList(Parser* p) {
   uint8_t argCount = 0;
   if (!check(p, TOKEN_RPAREN)) {
@@ -303,6 +323,8 @@ ParseRule rules[] = {
     [TOKEN_STRING]      = {string, NULL, PREC_NONE},
     [TOKEN_NUM]         = {number, NULL, PREC_NONE},
     [TOKEN_ASK]         = {ask, NULL, PREC_NONE},
+    [TOKEN_FORAGE]      = {forage, NULL, PREC_NONE},
+    [TOKEN_INSCRIBE]    = {inscribe, NULL, PREC_NONE},
     [TOKEN_FALSE]       = {literal, NULL, PREC_NONE},
     [TOKEN_TRUE]        = {literal, NULL, PREC_NONE},
     [TOKEN_NIL]         = {literal, NULL, PREC_NONE},
@@ -615,3 +637,4 @@ int compile(const char* source, FILE* outFile, bool isRepl) {
 
   return !p.hadError;
 }
+

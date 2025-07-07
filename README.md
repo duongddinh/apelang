@@ -25,6 +25,7 @@ Forget your high-level abstractions and complex frameworks. Apelang operates on 
 + **Input/Output**: `tree` (print), `ask()` (input)
 + **Arrays**: `bunch` of values: `[1, "banana", true]`
 + **Maps**: `canopy` key-value stores: `{"food": "banana"}`
++ **File I/O**: `inscribe()` to write to scrolls (files) and `forage()` to read from them.
 + **Modules**: `summon "helpers.ape"` to include external code
 + **Error Handling**: `tumble { ... } catch (err) { ... }`
 + **Interactive REPL**: A live, interactive shell for experimenting.
@@ -96,6 +97,8 @@ This will download `max.ape` into your current directory. You can then use it in
 * `ask()`: Get user input.
 * `if` / `else`: Conditional execution.
 * `swing`: Loop.
+* `inscribe`: Write new wisdom onto a scroll (file).
+* `forage`: Read the contents of a scroll (file).
 * `banana`: A while loop that continues as long as a condition is true.
 * `tribe`: Define a function.
 * `give`: Return from a function.
@@ -219,7 +222,21 @@ tree helperVar
 sayHelloFromHelper("Koko")
 ```
 
+### Jungle Scrolls (File I/O)
 
+Apes can now record their wisdom for future generations or read ancient knowledge from found scrolls.
+
+Create a new scroll and inscribe some wisdom
+```
+ape path = "ancient_scroll.txt"
+ape wisdom = "A banana in hand is worth two in the tree."
+inscribe(path, wisdom)
+```
+Later, another ape can forage for this wisdom
+```
+ape found_wisdom = forage(path)
+tree "The ancient scroll says: " ooh found_wisdom
+```
 ---
 
 ## Compile & Run
