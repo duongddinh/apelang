@@ -12,3 +12,8 @@ tree is_odd(a)
 tree is_even(a)                 
 
 tree power(2,5)
+
+ape c = negate(2)
+tree c
+
+tree abs(c)
