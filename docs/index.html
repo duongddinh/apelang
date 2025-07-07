@@ -282,7 +282,7 @@
 <body>
     <div class="container">
         <h1>🍌 Apelang Playground 🦍</h1>
-            <img src="apelang.png" alt="Apelang Icon" class="page-icon"> <p class="subtitle">
+            <img src="apelang.png" alt="Apelang Icon" class="page-icon"> 
 
         <p class="subtitle">
             A <strong>simulated</strong> jungle for the Apelang language.
@@ -297,13 +297,33 @@
         Apelang is a prehistoric programming language. Forget your high-level abstractions and complex frameworks; Apelang operates on pure, unadulterated primate instinct. It's simple, it's raw, and it's surprisingly effective for tasks that involve a lot of swinging, asking, and printing trees.
     </p>
 
-    <h3>Features</h3>
+    <h3>Core Concepts</h3>
     <ul>
-        <li><strong>Primitive Data Types:</strong> We've got numbers (for counting bananas), booleans (for "yes banana" or "no banana"), and strings (for shouting "OOH-OOH-AAH-AAH!").</li>
-        <li><strong>Basic Arithmetic:</strong> Add, subtract, multiply, and divide. Because even a primate needs to know how many bananas are left after sharing.</li>
-        <li><strong>Control Flow:</strong> <code>if</code> (if banana, then eat), <code>swing</code> (loop, like swinging through trees), and <code>give</code> (return, like giving back a half-eaten banana).</li>
-        <li><strong>Functions (or "Tribes"):</strong> Organize your code into reusable "tribes" of instructions. Because a lone ape is a sad ape.</li>
-        <li><strong>Input/Output:</strong> <code>tree</code> (print, for showing off your banana count) and <code>ask</code> (for asking if anyone has more bananas).</li>
+        <li><strong>Variables:</strong> Declare variables with the <code>ape</code> keyword (e.g., <code>ape bananas = 10</code>). Basic types include numbers, strings, booleans (<code>true</code>, <code>false</code>), and <code>nil</code>.</li>
+        <li><strong>I/O:</strong> Print to the console with <code>tree</code> and get user input with <code>ask()</code>.</li>
+        <li><strong>Comments:</strong> Use <code>#</code> for single-line comments to leave notes for other apes.</li>
+        <li><strong>Thematic Operators:</strong> Perform arithmetic with primal grunts: <code>ooh</code> (+), <code>aah</code> (-), <code>eek</code> (*), and <code>ook</code> (/).</li>
+        <li><strong>Functions (Tribes):</strong> Group your code into reusable blocks called a <code>tribe</code>. Use <code>give</code> to return a value.</li>
+    </ul>
+
+    <h3>Data Structures</h3>
+    <ul>
+        <li><strong>Bunch (Arrays):</strong> Create an ordered list of items, or a "bunch," using square brackets: <code>ape myBunch = [1, "two", true]</code>. Access elements with a numeric index, like <code>myBunch[0]</code>.</li>
+        <li><strong>Canopy (Maps):</strong> Create a key-value store, like a "canopy" of knowledge, using curly braces: <code>ape myCanopy = {"food": "banana", "sound": "ooh"}</code>. Access values using their string key, like <code>myCanopy["food"]</code>.</li>
+    </ul>
+
+    <h3>Control Flow</h3>
+    <ul>
+        <li><strong>Conditionals:</strong> Use standard <code>if</code> and <code>else</code> blocks to make decisions.</li>
+        <li><strong>Logical Operators:</strong> Combine conditions with <code>ripe</code> (AND) and <code>yellow</code> (OR).</li>
+        <li><strong>Swing Loops (For-style):</strong> Repeat an action a set number of times: <code>swing 5 { tree "Swinging!" }</code>.</li>
+        <li><strong>Banana Loops (While-style):</strong> Loop as long as a condition is true: <code>banana bananas > 0 { ... }</code>.</li>
+    </ul>
+
+    <h3>Error Handling & Modules</h3>
+    <ul>
+        <li><strong>Error Handling:</strong> Safely handle potential runtime errors (like a clumsy ape) using <code>tumble</code> and <code>catch</code> blocks, similar to try-catch.</li>
+        <li><strong>Modules:</strong> Import code from other files to build a larger tribe with the <code>summon</code> keyword: <code>summon "helpers.ape"</code>.</li>
     </ul>
 </div>
         <div class="code-section">
@@ -371,7 +391,7 @@ greet("Gorilla Gary")
         const askInput = document.getElementById('askInput');
         const askSubmitBtn = document.getElementById('askSubmitBtn');
 
-        const initialOutputText = "🌴 🦍  OOH-OOH-AAH-AAH!  WELCOME TO THE BANANA JUNGLE  🦍 🌴ApesLang VM Output";
+        const initialOutputText = "🌴 🦍  OOH-OOH-AAH-AAH!  WELCOME TO THE BANANA JUNGLE  🦍 🌴\nApesLang VM Output";
 
         let variables = {};
         let outputBuffer = [];
