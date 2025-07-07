@@ -111,6 +111,9 @@ struct ObjFunction {
     Obj obj;
     int arity;
     uint8_t* code;
+    struct ObjFunction* owner;
+    uint32_t code_offset;     
+
     ObjString* name;
 
     bool isModule;
