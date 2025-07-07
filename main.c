@@ -2,6 +2,129 @@
 #include "compiler.h"
 #include "vm.h"
 #include "debug.h"
+#include "lexer.h" 
+
+static char* processedFiles[1024];
+static int processedCount = 0;
+static char* readFile(const char* path);
+char** findDependencies(const char* source, int* count);
+void compileWithDependencies(const char* ape_path);
+
+bool hasBeenProcessed(const char* path) {
+    for (int i = 0; i < processedCount; i++) {
+        if (strcmp(processedFiles[i], path) == 0) return true;
+    }
+    return false;
+}
+
+void markAsProcessed(const char* path) {
+    if (processedCount < 1024) {
+        processedFiles[processedCount++] = strdup(path);
+    }
+}
+
+// The main recursive compilation driver.
+void compileWithDependencies(const char* ape_path) {
+    // 1. Avoid re-compiling or circular dependencies.
+    if (hasBeenProcessed(ape_path)) {
+        return;
+    }
+
+    printf("-> Processing: %s\n", ape_path);
+
+    char* source = readFile(ape_path); // Assumes readFile is accessible
+    if (source == NULL) {
+        fprintf(stderr, "Error: Could not open source file '%s'.\n", ape_path);
+        exit(71);
+    }
+    
+    // 2. Find and recursively compile all dependencies first.
+    int dep_count = 0;
+    char** deps = findDependencies(source, &dep_count);
+    free(source); // Free the source after scanning
+    
+    for (int i = 0; i < dep_count; i++) {
+        compileWithDependencies(deps[i]);
+        free(deps[i]); // Free the path string
+    }
+    free(deps);
+
+    // 3. After dependencies are met, compile the current file.
+    printf("=> Compiling: %s\n", ape_path);
+    char path_apb[1024];
+    strncpy(path_apb, ape_path, sizeof(path_apb) - 1);
+    // Replace .ape with .apb
+    char* dot = strrchr(path_apb, '.');
+    if (dot && strcmp(dot, ".ape") == 0) {
+        strcpy(dot, ".apb");
+    } else {
+        strcat(path_apb, ".apb");
+    }
+
+    source = readFile(ape_path); // Read the source again for compilation
+    FILE* outFile = fopen(path_apb, "wb");
+    if (outFile == NULL) {
+        fprintf(stderr, "Error: Unable to open output file '%s'.\n", path_apb);
+        exit(71);
+    }
+
+    if (compile(source, outFile, false)) { // This is your existing compile function
+        printf("   Success: %s -> %s\n", ape_path, path_apb);
+    } else {
+        fprintf(stderr, "   Failure: Could not compile %s.\n", ape_path);
+        exit(65);
+    }
+
+    fclose(outFile);
+    free(source);
+    
+    // 4. Mark this file as done.
+    markAsProcessed(ape_path);
+}
+char** findDependencies(const char* source, int* count) {
+    *count = 0;
+    Lexer lexer;
+    
+    // First pass: count the dependencies to know how much memory to allocate.
+    initLexer(&lexer, source);
+    for (;;) {
+        Token token = scanToken(&lexer);
+        // Look for the pattern: summon "some/path.ape"
+        if (token.type == TOKEN_SUMMON) {
+            Token nextToken = scanToken(&lexer);
+            if (nextToken.type == TOKEN_STRING) {
+                (*count)++;
+            }
+        }
+        if (token.type == TOKEN_EOF) break;
+    }
+
+    if (*count == 0) return NULL;
+
+    char** deps = malloc(sizeof(char*) * (*count));
+    int deps_idx = 0;
+
+    // Second pass: extract the dependency paths into the list.
+    initLexer(&lexer, source);
+    for (;;) {
+        Token token = scanToken(&lexer);
+        if (token.type == TOKEN_SUMMON) {
+            Token pathToken = scanToken(&lexer);
+            if (pathToken.type == TOKEN_STRING) {
+                // Extract the path from the string literal (e.g., "math.ape" -> math.ape)
+                int len = pathToken.length - 2;
+                char* path = malloc(len + 1);
+                strncpy(path, pathToken.start + 1, len);
+                path[len] = '\0';
+                deps[deps_idx++] = path;
+            }
+        }
+        if (token.type == TOKEN_EOF) break;
+    }
+    return deps;
+}
+
+
 
 static char* readFile(const char* path) {
   FILE* file = fopen(path, "rb");
@@ -130,9 +253,13 @@ int main(int argc, const char* argv[]) {
 
   const char* command = argv[1];
 
-  if (strcmp(command, "compile") == 0 && argc == 3) {
-    compileCommand(argv[2]);
-  } else if (strcmp(command, "run") == 0 && argc == 3) {
+   if (argc == 3 && strcmp(argv[1], "compile") == 0) {
+        compileWithDependencies(argv[2]);
+        // Clean up memory from the processed files list
+        for (int i = 0; i < processedCount; i++) {
+            free(processedFiles[i]);
+        }
+    } else if (strcmp(command, "run") == 0 && argc == 3) {
     runCommand(argv[2]);
   } else if (strcmp(command, "repl") == 0 && argc == 2) {
     runRepl();
