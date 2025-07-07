@@ -159,6 +159,27 @@ Example: A file containing tree 10 ooh 5 would produce:
 0021 OP_RETURN        ; ape returns to the tribe's canopy
 ```
 
+## 🦍 Installing the ApeLang VS Code Extension
+
+## From Marketplace
+
+Install directly from the Visual Studio Code Marketplace:
+
+🔗 [duongddinh.ape on Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=duongddinh.ape)
+
+### Steps:
+
+1. Open VS Code
+2. Go to Extensions (`Ctrl+Shift+X` / `Cmd+Shift+X`)
+3. Search for: `duongddinh.ape`
+4. Click **Install**
+
+Or via terminal:
+
+```bash
+code --install-extension duongddinh.ape
+```
+
 ## Advanced Ape Knowledge
 
 ### Bunch (Array)
