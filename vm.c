@@ -133,11 +133,33 @@ static bool valuesEqual(Value a, Value b) {
         return aString->length == bString->length &&
                memcmp(aString->chars, bString->chars, aString->length) == 0;
       }
-      // For other objects, compare pointers
       return AS_OBJ(a) == AS_OBJ(b);
     }
   }
   return false;
+}
+static uint8_t* readBytecodeFile(const char* path, size_t* out_fileSize) {
+    FILE* file = fopen(path, "rb");
+    if (file == NULL) return NULL;
+
+    fseek(file, 0L, SEEK_END);
+    *out_fileSize = ftell(file);
+    rewind(file);
+
+    uint8_t* buffer = (uint8_t*)malloc(*out_fileSize);
+    if (buffer == NULL) {
+        fprintf(stderr, "Not enough memory to read bytecode file \"%s\".\n", path);
+        exit(74);
+    }
+
+    size_t bytesRead = fread(buffer, sizeof(uint8_t), *out_fileSize, file);
+    if (bytesRead < *out_fileSize) {
+        fprintf(stderr, "Could not read entire file \"%s\".\n", path);
+        exit(74);
+    }
+
+    fclose(file);
+    return buffer;
 }
 
 static bool call(VM* vm, ObjFunction* function, int argCount) {
@@ -153,7 +175,10 @@ static bool call(VM* vm, ObjFunction* function, int argCount) {
   }
   CallFrame* frame = &vm->frames[vm->frameCount++];
   frame->function = function;
-  frame->ip = function->code;
+
+  ObjFunction* owner = function->owner ? function->owner : function;
+  frame->ip = owner->code + function->code_offset;
+
   frame->slots = vm->stackTop - argCount - 1;
   return true;
 }
@@ -169,6 +194,7 @@ static bool callValue(VM* vm, Value callee, int argCount) {
 void markValue(Value value) {
   if (IS_OBJ(value)) markObject(AS_OBJ(value));
 }
+
 void markObject(Obj* object) {
   if (object == NULL || object->isMarked) return;
   object->isMarked = true;
@@ -176,6 +202,7 @@ void markObject(Obj* object) {
     case OBJ_FUNCTION: {
       ObjFunction* function = (ObjFunction*)object;
       markObject((Obj*)function->name);
+      markObject((Obj*)function->owner);
       break;
     }
     case OBJ_BUNCH: {
@@ -213,7 +240,9 @@ static void freeObject(VM* vm, Obj* object) {
     }
     case OBJ_FUNCTION: {
       ObjFunction* function = (ObjFunction*)object;
-      if (function->isModule) free(function->code);
+      if (function->isModule) {
+        free(function->code);
+      }
       reallocate(vm, object, sizeof(ObjFunction), 0);
       break;
     }
@@ -320,8 +349,12 @@ VMResult run(VM* vm) {
             function->arity = *frame->ip++;
             uint32_t codeAddr;
             memcpy(&codeAddr, frame->ip, sizeof(uint32_t));
-            function->code = frame->function->code + codeAddr;
             frame->ip += sizeof(uint32_t);
+
+            function->owner = frame->function;
+            function->code_offset = codeAddr;
+            function->code = NULL; // This function doesn't own a code chunk.
+
             uint8_t nameLen = *frame->ip++;
             size_t nameSize = sizeof(ObjString) + nameLen + 1;
             ObjString* nameString =
@@ -332,14 +365,15 @@ VMResult run(VM* vm) {
             memcpy(nameString->chars, frame->ip, nameLen);
             nameString->chars[nameLen] = '\0';
             frame->ip += nameLen;
+
             function->name = nameString;
+            function->isModule = false;
             function->obj.isMarked = false;
             function->obj.next = vm->objects;
             vm->objects = (Obj*)function;
             nameString->obj.isMarked = false;
             nameString->obj.next = vm->objects;
             vm->objects = (Obj*)nameString;
-            function->isModule = false;
             *vm->stackTop++ = OBJ_VAL(function);
           }
         }
@@ -437,7 +471,8 @@ VMResult run(VM* vm) {
         memcpy(&target_offset, frame->ip, sizeof(uint32_t));
         vm->loop_counters[vm->loop_counter_top - 1]--;
         if (vm->loop_counters[vm->loop_counter_top - 1] > 0) {
-          frame->ip = vm->bytecode + target_offset;
+          ObjFunction* owner = frame->function->owner ? frame->function->owner : frame->function;
+          frame->ip = owner->code + target_offset;
         } else {
           vm->loop_counter_top--;
           frame->ip += sizeof(uint32_t);
@@ -466,11 +501,9 @@ VMResult run(VM* vm) {
         char* end;
         double value = strtod(line, &end);
 
-        // Check if the entire string was consumed, meaning it's a valid number
         if (*end == '\0') {
           *vm->stackTop++ = NUMBER_VAL(value);
         } else {
-          // Otherwise, treat it as a string
           int len = strlen(line);
           size_t size = sizeof(ObjString) + len + 1;
           ObjString* obj = (ObjString*)reallocate(vm, NULL, 0, size);
@@ -479,11 +512,9 @@ VMResult run(VM* vm) {
           obj->chars = (char*)(obj + 1);
           memcpy(obj->chars, line, len + 1);
           obj->hash = hashString(obj->chars, len);
-
           obj->obj.isMarked = false;
           obj->obj.next = vm->objects;
           vm->objects = (Obj*)obj;
-
           *vm->stackTop++ = OBJ_VAL(obj);
         }
         break;
@@ -657,43 +688,51 @@ VMResult run(VM* vm) {
       case OP_TUMBLE_END:
         vm->tryHandlerCount--;
         break;
-      case OP_SUMMON: {
+       case OP_SUMMON: {
         Value pathValue = *--vm->stackTop;
-        if (!IS_STRING(pathValue))
+        if (!IS_STRING(pathValue)) {
           RUNTIME_ERROR("summon path must be a string.");
-        char* source = readFile(AS_CSTRING(pathValue));
-        if (source == NULL)
-          RUNTIME_ERROR("Could not open summon file '%s'.",
-                        AS_CSTRING(pathValue));
-        uint8_t* bytecode_buffer = NULL;
-        size_t bytecode_size = 0;
-        FILE* mem_file =
-            open_memstream((char**)&bytecode_buffer, &bytecode_size);
-        if (!compile(source, mem_file, false)) {
-          free(source);
-          fclose(mem_file);
-          free(bytecode_buffer);
-          RUNTIME_ERROR("Error compiling summoned file '%s'.",
-                        AS_CSTRING(pathValue));
         }
-        free(source);
-        fflush(mem_file);
+        
+        char* ape_path = AS_CSTRING(pathValue);
+        int path_len = strlen(ape_path);
+        if (path_len <= 4 || strcmp(ape_path + path_len - 4, ".ape") != 0) {
+            RUNTIME_ERROR("Summon path must end in .ape");
+        }
+        char apb_path[1024];
+        strncpy(apb_path, ape_path, path_len - 4);
+        apb_path[path_len - 4] = '\0';
+        strcat(apb_path, ".apb");
+
+        // Read the bytecode from the .apb file.
+        size_t bytecode_size = 0;
+        uint8_t* bytecode_buffer = readBytecodeFile(apb_path, &bytecode_size);
+        if (bytecode_buffer == NULL) {
+            RUNTIME_ERROR("Cannot open or read module file '%s'. Compile it first.", apb_path);
+        }
+        
+        // Create the module function that will own this bytecode.
         ObjFunction* moduleFunc =
             (ObjFunction*)reallocate(vm, NULL, 0, sizeof(ObjFunction));
         moduleFunc->obj.type = OBJ_FUNCTION;
         moduleFunc->arity = 0;
-        moduleFunc->code = bytecode_buffer;
         moduleFunc->name = AS_STRING(pathValue);
-        moduleFunc->isModule = true;
+
+        // This function owns the new bytecode chunk.
+        moduleFunc->code = bytecode_buffer;
+        moduleFunc->isModule = true; // This tells the GC to free the code buffer later.
+        
         moduleFunc->obj.isMarked = false;
         moduleFunc->obj.next = vm->objects;
         vm->objects = (Obj*)moduleFunc;
-        *vm->stackTop++ = OBJ_VAL(moduleFunc);
-        call(vm, moduleFunc, 0);
+        
+        if (!call(vm, moduleFunc, 0)) {
+            return VM_RESULT_RUNTIME_ERROR;
+        }
         frame = &vm->frames[vm->frameCount - 1];
-        fclose(mem_file);
         break;
       }
+
       case 255:
         return VM_RESULT_OK;
       default:
@@ -825,15 +864,20 @@ VMResult interpret(VM* vm, const char* source) {
       (ObjFunction*)reallocate(vm, NULL, 0, sizeof(ObjFunction));
   function->obj.type = OBJ_FUNCTION;
   function->arity = 0;
-  function->code = bytecode_buffer;
   function->name = NULL;
-  function->isModule = true;
+
+  function->code = bytecode_buffer;
+  function->owner = NULL;
+  function->code_offset = 0;
+  function->isModule = true; 
 
   *vm->stackTop++ = OBJ_VAL(function);
   call(vm, function, 0);
+
+  VMResult result = run(vm);
   fclose(mem_file);
 
-  return run(vm);
+  return result;
 }
 
 VMResult runBytecode(const char* path) {
@@ -852,13 +896,18 @@ VMResult runBytecode(const char* path) {
   fread(vm.bytecode, sizeof(uint8_t), fileSize, file);
   fclose(file);
   vm.bytecode[fileSize] = 255;
+
   ObjFunction* topLevelFunc =
       (ObjFunction*)reallocate(&vm, NULL, 0, sizeof(ObjFunction));
   memset(topLevelFunc, 0, sizeof(ObjFunction));
   topLevelFunc->obj.type = OBJ_FUNCTION;
   topLevelFunc->arity = 0;
+  
   topLevelFunc->code = vm.bytecode;
-  topLevelFunc->isModule = false;
+  topLevelFunc->owner = NULL;
+  topLevelFunc->code_offset = 0;
+  topLevelFunc->isModule = false; 
+
   const char* script_name_literal = "script";
   int name_len = strlen(script_name_literal);
   size_t nameSize = sizeof(ObjString) + name_len + 1;
@@ -868,6 +917,7 @@ VMResult runBytecode(const char* path) {
   nameString->chars = (char*)(nameString + 1);
   strcpy(nameString->chars, script_name_literal);
   topLevelFunc->name = nameString;
+
   topLevelFunc->obj.isMarked = false;
   topLevelFunc->obj.next = vm.objects;
   vm.objects = (Obj*)topLevelFunc;
