@@ -25,6 +25,7 @@ Forget your high-level abstractions and complex frameworks. Apelang operates on 
 + **Input/Output**: `tree` (print), `ask()` (input)
 + **Arrays**: `bunch` of values: `[1, "banana", true]`
 + **Maps**: `canopy` key-value stores: `{"food": "banana"}`
++ **String Manipulation**: Built-in functions for powerful string operations: `tally(), slice(), graft(), scan(), and shed()`.
 + **File I/O**: `inscribe()` to write to scrolls (files) and `forage()` to read from them.
 + **Modules**: `summon "helpers.ape"` to include external code
 + **Error Handling**: `tumble { ... } catch (err) { ... }`
@@ -104,6 +105,11 @@ This will download `max.ape` into your current directory. You can then use it in
 * `give`: Return from a function.
 * `tumble` / `catch`: Try-catch-style error handling.
 * `summon`: Import another `.ape` module file.
+* `tally`: Get the length of a string.
+* `slice`: Extract a part of a string.
+* `graft`: Concatenate two strings.
+* `scan`: Find a substring.
+* `shed`: Trim whitespace.
 
 ### Operators
 
@@ -220,6 +226,40 @@ tumble {
 summon "helpers.ape"
 tree helperVar
 sayHelloFromHelper("Koko")
+```
+
+### Built-in String Tribes
+Apelang has powerful, built-in functions for manipulating strings.
+`
+tally(string) - Counts the characters.
+`
+```
+tree tally("banana") #> 6
+```
+`
+slice(string, start, end) - Extracts a piece of the string.
+`
+```
+tree slice("banana", 1, 4) #> "ana"
+```
+`
+graft(string1, string2) - Joins two strings.
+`
+```
+tree graft("ooh-ooh-", "aah-aah") #> "ooh-ooh-aah-aah"
+```
+`
+scan(haystack, needle) - Finds the starting index of a substring.
+`
+```
+tree scan("jungle vine", "vine") #> 7
+tree scan("jungle vine", "tree") #> -1
+```
+`
+shed(string) - Removes whitespace from the start and end.
+`
+```
+tree shed("   lots of space   ") #> "lots of space"
 ```
 
 ### Jungle Scrolls (File I/O)
