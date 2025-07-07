@@ -128,8 +128,14 @@ static TokenType identifierType(Lexer* lexer) {
         }
         break;
     case 'g':
-      return checkKeyword(lexer, 1, 3, "ive", TOKEN_GIVE);
-    case 'i':
+   if (lexer->current - lexer->start > 1) {
+        switch (lexer->start[1]) {
+          case 'i': return checkKeyword(lexer, 2, 2, "ve", TOKEN_GIVE);
+          case 'r': return checkKeyword(lexer, 2, 3, "aft", TOKEN_GRAFT); 
+        }
+      }
+      break;
+     case 'i':
         if (lexer->current - lexer->start > 1) {
             switch (lexer->start[1]) {
                 case 'f': return checkKeyword(lexer, 2, 0, "", TOKEN_IF);
@@ -152,6 +158,10 @@ static TokenType identifierType(Lexer* lexer) {
             return checkKeyword(lexer, 2, 3, "ing", TOKEN_SWING);
           case 'u':
             return checkKeyword(lexer, 2, 4, "mmon", TOKEN_SUMMON);
+          case 'c': return checkKeyword(lexer, 2, 2, "an", TOKEN_SCAN);   
+          case 'h': return checkKeyword(lexer, 2, 2, "ed", TOKEN_SHED);   
+          case 'l': return checkKeyword(lexer, 2, 3, "ice", TOKEN_SLICE);  
+
         }
       }
       break;
@@ -170,6 +180,9 @@ static TokenType identifierType(Lexer* lexer) {
             break;
           case 'u':
             return checkKeyword(lexer, 2, 4, "mble", TOKEN_TUMBLE);
+          case 'a': 
+            return checkKeyword(lexer, 2, 3, "lly", TOKEN_TALLY);
+
         }
       }
       break;

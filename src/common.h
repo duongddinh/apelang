@@ -58,6 +58,13 @@ typedef enum {
     // File I/O
     OP_FORAGE,
     OP_INSCRIBE,
+    
+    OP_SLICE,
+    OP_GRAFT,
+    OP_SCAN,
+    OP_SHED,
+    OP_STRLEN,
+
 
 } OpCode;
 

@@ -73,6 +73,8 @@ static void yellow_(Parser* p, bool canAssign);
 static void expressionStatement(Parser* p);
 static void forage(Parser* p, bool canAssign);
 static void inscribe(Parser* p, bool canAssign);
+static void stringOperation(Parser* p, bool canAssign);
+static void tally(Parser* p, bool canAssign);
 
 
 static void errorAt(Parser* p, Token* token, const char* message) {
@@ -320,6 +322,13 @@ ParseRule rules[] = {
     [TOKEN_LESS]        = {NULL, binary, PREC_COMPARISON},
     [TOKEN_LESS_EQUAL]  = {NULL, binary, PREC_COMPARISON},
     [TOKEN_ID]          = {variable, NULL, PREC_NONE},
+    
+    [TOKEN_SLICE]       = {stringOperation, NULL, PREC_NONE},
+    [TOKEN_GRAFT]       = {stringOperation, NULL, PREC_NONE},
+    [TOKEN_SCAN]        = {stringOperation, NULL, PREC_NONE},
+    [TOKEN_SHED]        = {stringOperation, NULL, PREC_NONE},
+    [TOKEN_TALLY]       = {tally, NULL, PREC_NONE},
+
     [TOKEN_STRING]      = {string, NULL, PREC_NONE},
     [TOKEN_NUM]         = {number, NULL, PREC_NONE},
     [TOKEN_ASK]         = {ask, NULL, PREC_NONE},
@@ -339,6 +348,8 @@ ParseRule rules[] = {
     [TOKEN_YELLOW]      = {NULL, yellow_, PREC_YELLOW},
     [TOKEN_CATCH]       = {NULL, NULL, PREC_NONE},
     [TOKEN_ERROR]       = {NULL, NULL, PREC_NONE},
+    [TOKEN_EOF]         = {NULL, NULL, PREC_NONE}, 
+
 };
 
 static ParseRule* getRule(TokenType type) { return &rules[type]; }
@@ -368,7 +379,38 @@ static void printStatement(Parser* p) {
   expression(p);
   emitByte(p, OP_PRINT);
 }
+static void stringOperation(Parser* p, bool canAssign) {
+    TokenType opType = p->previous.type;
+    consume(p, TOKEN_LPAREN, "Expect '(' after a string operation.");
+    expression(p); // The primary string or first argument
 
+    if (opType == TOKEN_GRAFT || opType == TOKEN_SLICE || opType == TOKEN_SCAN) {
+        consume(p, TOKEN_COMMA, "Expect ',' separating arguments.");
+        expression(p); // The second argument
+    }
+
+    // slice has a third argument
+    if (opType == TOKEN_SLICE) {
+        consume(p, TOKEN_COMMA, "Expect ',' separating arguments.");
+        expression(p);
+    }
+
+    consume(p, TOKEN_RPAREN, "Expect ')' after arguments.");
+
+    switch (opType) {
+        case TOKEN_SLICE: emitByte(p, OP_SLICE); break;
+        case TOKEN_GRAFT: emitByte(p, OP_GRAFT); break;
+        case TOKEN_SCAN:  emitByte(p, OP_SCAN); break;
+        case TOKEN_SHED:  emitByte(p, OP_SHED); break;
+        default:          error(p, "Invalid string operation.");
+    }
+}
+static void tally(Parser* p, bool canAssign) {
+    consume(p, TOKEN_LPAREN, "Expect '(' after 'tally'.");
+    expression(p); // The string expression
+    consume(p, TOKEN_RPAREN, "Expect ')' after tally argument.");
+    emitByte(p, OP_STRLEN); // We can reuse the old opcode
+}
 static void expressionStatement(Parser* p) {
   expression(p);
   // In REPL mode, print the result of an expression statement.

@@ -1,0 +1,197 @@
+# string_utils.ape
+# A module of advanced string manipulation tribes for Apeslang.
+# These tribes can be summoned into any other .ape file.
+
+# --- String Searching & Validation Tribes ---
+
+# Tribe: contains
+# Checks if a main string (haystack) contains a smaller string (needle).
+#
+# Takes:
+#   - haystack: The string to search within.
+#   - needle: The substring to search for.
+#
+# Gives:
+#   - true if the needle is found, otherwise false.
+tribe contains(haystack, needle) {
+  give scan(haystack, needle) != (0 aah 1) # -1
+}
+
+# Tribe: sniff_trail
+# Checks if a string starts with a specific prefix (scent).
+#
+# Takes:
+#   - str: The string to check.
+#   - prefix: The substring to look for at the start.
+#
+# Gives:
+#   - true if the string starts with the prefix, otherwise false.
+tribe sniff_trail(str, prefix) {
+  # The trail starts with the scent if the prefix is at the very beginning (index 0).
+  give scan(str, prefix) == 0
+}
+
+# Tribe: guard_trail
+# Checks if a string ends with a specific suffix.
+#
+# Takes:
+#   - str: The string to check.
+#   - suffix: The substring to look for at the end.
+#
+# Gives:
+#   - true if the string ends with the suffix, otherwise false.
+tribe guard_trail(str, suffix) {
+  ape suffix_len = tally(suffix)
+  ape str_len = tally(str)
+  if (suffix_len > str_len) {
+    give false # Can't end with a suffix longer than the string itself.
+  }
+  ape start_index = str_len aah suffix_len
+  ape trail_end = slice(str, start_index, str_len)
+  give trail_end == suffix
+}
+
+# --- String Modification Tribes ---
+
+# Tribe: replant
+# Replaces all occurrences of a substring (old_bit) with a new one (new_bit).
+# This is a recursive tribe! It replants one piece at a time.
+#
+# Takes:
+#   - main_str: The string to modify.
+#   - old_bit: The substring to be replaced.
+#   - new_bit: The substring to insert.
+#
+# Gives:
+#   - A new string with all replacements made.
+tribe replant(main_str, old_bit, new_bit) {
+  ape found_at = scan(main_str, old_bit)
+  # Base case: if the old_bit isn't found, we're done.
+  if (found_at == (0 aah 1)) { # -1
+    give main_str
+  }
+  # Slice the string into the part *before* the bit we're replacing.
+  ape before = slice(main_str, 0, found_at)
+  # Slice the part *after* the bit we're replacing.
+  ape old_len = tally(old_bit)
+  ape after_start = found_at ooh old_len # 'ooh' is '+'
+  ape after = slice(main_str, after_start, tally(main_str))
+  # Graft the first part with the new bit, then recursively
+  # call replant on the rest of the string.
+  give graft(graft(before, new_bit), replant(after, old_bit, new_bit))
+}
+
+# Tribe: echo
+# Repeats a string a specified number of times, like an echo in the jungle.
+#
+# Takes:
+#   - str: The string to repeat.
+#   - count: The number of times to repeat it.
+#
+# Gives:
+#   - A new string containing the original repeated 'count' times.
+tribe echo(str, count) {
+  if (count <= 0) { give "" }
+  ape result = ""
+  banana (count > 0) {
+    result = graft(result, str)
+    count = count aah 1 # Use 'aah' for subtraction
+  }
+  give result
+}
+
+# Tribe: reverse_chant
+# Reverses the characters in a string.
+#
+# Takes:
+#   - str: The string to reverse.
+#
+# Gives:
+#   - A new string with the characters in reverse order.
+tribe reverse_chant(str) {
+  ape reversed = ""
+  ape i = tally(str) aah 1 # Use 'aah' for subtraction
+  banana (i >= 0) {
+    reversed = graft(reversed, slice(str, i, i ooh 1)) # 'ooh' is '+'
+    i = i aah 1 # Use 'aah' for subtraction
+  }
+  give reversed
+}
+
+# --- Case Conversion Tribes ---
+
+# Tribe: to_uppercase_shout
+# Converts a string to all uppercase letters by mapping characters.
+#
+# Takes:
+#   - str: The string to convert.
+#
+# Gives:
+#   - An all-uppercase version of the string.
+tribe to_uppercase_shout(str) {
+    ape lowercase = "abcdefghijklmnopqrstuvwxyz"
+    ape uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    ape result = ""
+    ape i = 0
+    banana (i < tally(str)) {
+        ape char = slice(str, i, i ooh 1)
+        ape index = scan(lowercase, char)
+        if (index != (0 aah 1)) { # -1
+            result = graft(result, slice(uppercase, index, index ooh 1))
+        } else {
+            result = graft(result, char)
+        }
+        i = i ooh 1
+    }
+    give result
+}
+
+# Tribe: to_lowercase_whisper
+# Converts a string to all lowercase letters by mapping characters.
+#
+# Takes:
+#   - str: The string to convert.
+#
+# Gives:
+#   - An all-lowercase version of the string.
+tribe to_lowercase_whisper(str) {
+    ape lowercase = "abcdefghijklmnopqrstuvwxyz"
+    ape uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    ape result = ""
+    ape i = 0
+    banana (i < tally(str)) {
+        ape char = slice(str, i, i ooh 1)
+        ape index = scan(uppercase, char)
+        if (index != (0 aah 1)) { # -1
+            result = graft(result, slice(lowercase, index, index ooh 1))
+        } else {
+            result = graft(result, char)
+        }
+        i = i ooh 1
+    }
+    give result
+}
+
+# Tribe: capitalize_shout
+# Capitalizes the first letter of a given string.
+#
+# Takes:
+#   - str: The string to capitalize.
+#
+# Gives:
+#   - A new string with the first letter capitalized.
+tribe capitalize_shout(str) {
+    if (tally(str) == 0) {
+        give ""
+    }
+    ape first_char = slice(str, 0, 1)
+    ape rest_of_str = slice(str, 1, tally(str))
+    
+    ape capitalized_first = to_uppercase_shout(first_char)
+    
+    give graft(capitalized_first, rest_of_str)
+}
+
+
+# Announce that the tribe's wisdom is ready.
+tree "String utility tribe has been summoned and expanded."

@@ -1,0 +1,64 @@
+summon "string_utils.ape"
+
+# --- Test Section ---
+tree "--- Testing All String Utility Tribes ---"
+
+# --- Test: contains ---
+tree "[Testing: contains]"
+tree "Is 'banana' in 'ripe banana'? (true)"
+tree contains("ripe banana", "banana")
+tree "Is 'ape' in 'ripe banana'? (false)"
+tree contains("ripe banana", "ape")
+
+# --- Test: sniff_trail (startsWith) ---
+tree "[Testing: sniff_trail]"
+tree "Does 'jungle path' start with 'jungle'? (true)"
+tree sniff_trail("jungle path", "jungle")
+tree "Does 'jungle path' start with 'path'? (false)"
+tree sniff_trail("jungle path", "path")
+
+# --- Test: guard_trail (endsWith) ---
+tree "[Testing: guard_trail]"
+tree "Does 'forest canopy' end with 'canopy'? (true)"
+tree guard_trail("forest canopy", "canopy")
+tree "Does 'forest canopy' end with 'forest'? (false)"
+tree guard_trail("forest canopy", "forest")
+
+# --- Test: replant (replace all) ---
+tree "[Testing: replant]"
+tree "Replacing '-' with '->' in 'ape-banana-tree':"
+tree replant("ape-banana-tree", "-", "->")
+tree "Replacing 'ooh' with 'ook' in 'ooh ooh aah aah ooh':"
+tree replant("ooh ooh aah aah ooh", "ooh", "ook")
+
+# --- Test: echo ---
+tree "[Testing: echo]"
+tree "Echo 'ooh ' 3 times:"
+tree echo("ooh ", 3)
+tree "Echo '... ' 0 times:"
+tree echo("... ", 0)
+
+# --- Test: reverse_chant ---
+tree "[Testing: reverse_chant]"
+tree "Reversing 'danger':"
+tree reverse_chant("danger")
+
+# --- Test: to_uppercase_shout ---
+tree "[Testing: to_uppercase_shout]"
+tree "Shouting 'whisper loudly':"
+tree to_uppercase_shout("whisper loudly")
+
+# --- Test: to_lowercase_whisper ---
+tree "[Testing: to_lowercase_whisper]"
+tree "Whispering 'SHOUT QUIETLY':"
+tree to_lowercase_whisper("SHOUT QUIETLY")
+
+# --- Test: capitalize_shout ---
+tree "[Testing: capitalize_shout]"
+tree "Capitalizing 'ape':"
+tree capitalize_shout("ape")
+tree "Capitalizing 'jungle chant':"
+tree capitalize_shout("jungle chant")
+
+
+tree "--- All Jungle Tests Complete ---"

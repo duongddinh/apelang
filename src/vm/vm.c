@@ -27,6 +27,23 @@ static void markValue(Value value);
 static void collectGarbage(VM* vm);
 static void freeObject(VM* vm, Obj* object);
 
+
+
+static void pushNewString(VM* vm, const char* chars, int length) {
+    size_t size = sizeof(ObjString) + length + 1;
+    ObjString* stringObj = (ObjString*)reallocate(vm, NULL, 0, size);
+    stringObj->obj.type = OBJ_STRING;
+    stringObj->length = length;
+    stringObj->chars = (char*)(stringObj + 1);
+    memcpy(stringObj->chars, chars, length);
+    stringObj->chars[length] = '\0';
+    stringObj->hash = hashString(stringObj->chars, length);
+    stringObj->obj.isMarked = false;
+    stringObj->obj.next = vm->objects;
+    vm->objects = (Obj*)stringObj;
+    *vm->stackTop++ = OBJ_VAL(stringObj);
+}
+
 static void* reallocate(VM* vm, void* pointer, size_t oldSize, size_t newSize) {
   vm->bytesAllocated += newSize - oldSize;
   
@@ -345,6 +362,86 @@ VMResult run(VM* vm) {
   for (;;) {
     uint8_t instruction = *frame->ip++;
     switch (instruction) {
+      case OP_STRLEN: {
+        Value value = *--vm->stackTop;
+        if (!IS_STRING(value)) {
+          RUNTIME_ERROR("Operand must be a string.");
+        }
+        ObjString* string = AS_STRING(value);
+        *vm->stackTop++ = NUMBER_VAL((double)string->length);
+        break;
+      }
+      case OP_GRAFT: {
+        Value b_val = *--vm->stackTop;
+        Value a_val = *--vm->stackTop;
+        if (!IS_STRING(a_val) || !IS_STRING(b_val)) {
+          RUNTIME_ERROR("Operands for 'graft' must be strings.");
+        }
+        ObjString* a = AS_STRING(a_val);
+        ObjString* b = AS_STRING(b_val);
+        int new_length = a->length + b->length;
+        char* new_chars = (char*)malloc(new_length + 1);
+        memcpy(new_chars, a->chars, a->length);
+        memcpy(new_chars + a->length, b->chars, b->length);
+        new_chars[new_length] = '\0';
+        pushNewString(vm, new_chars, new_length);
+        free(new_chars);
+        break;
+      }
+
+      case OP_SLICE: {
+        Value end_val = *--vm->stackTop;
+        Value start_val = *--vm->stackTop;
+        Value str_val = *--vm->stackTop;
+        if (!IS_STRING(str_val) || !IS_NUMBER(start_val) || !IS_NUMBER(end_val)) {
+            RUNTIME_ERROR("'slice' requires a string and two number indices.");
+        }
+        ObjString* string = AS_STRING(str_val);
+        int start = (int)AS_NUMBER(start_val);
+        int end = (int)AS_NUMBER(end_val);
+
+        if (start < 0 || end > string->length || start > end) {
+            RUNTIME_ERROR("Slice indices out of bounds.");
+        }
+        int slice_len = end - start;
+        pushNewString(vm, string->chars + start, slice_len);
+        break;
+      }
+
+      case OP_SCAN: {
+        Value needle_val = *--vm->stackTop;
+        Value haystack_val = *--vm->stackTop;
+        if (!IS_STRING(haystack_val) || !IS_STRING(needle_val)) {
+            RUNTIME_ERROR("'scan' requires two strings.");
+        }
+        char* haystack = AS_CSTRING(haystack_val);
+        char* needle = AS_CSTRING(needle_val);
+        char* found = strstr(haystack, needle);
+        if (found) {
+            *vm->stackTop++ = NUMBER_VAL(found - haystack);
+        } else {
+            *vm->stackTop++ = NUMBER_VAL(-1);
+        }
+        break;
+      }
+
+      case OP_SHED: {
+        Value str_val = *--vm->stackTop;
+        if (!IS_STRING(str_val)) {
+            RUNTIME_ERROR("'shed' requires a string.");
+        }
+        ObjString* string = AS_STRING(str_val);
+        char* start = string->chars;
+        while (isspace((unsigned char)*start)) start++;
+        
+        char* end = string->chars + string->length - 1;
+        while (end > start && isspace((unsigned char)*end)) end--;
+        
+        int shed_len = (end - start) + 1;
+        pushNewString(vm, start, shed_len);
+        break;
+      }
+
       case OP_PUSH: {
         ValueType type = (ValueType)*frame->ip++;
         if (type == VAL_NUMBER) {

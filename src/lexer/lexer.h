@@ -44,6 +44,11 @@ typedef enum {
   TOKEN_RIPE,     
   TOKEN_YELLOW,  
 
+  TOKEN_SLICE,    // for substring
+  TOKEN_GRAFT,    // for concatenation
+  TOKEN_SCAN,     // for find
+  TOKEN_SHED,     // for trim
+  TOKEN_TALLY,    // length
 
   TOKEN_BUNCH,    //  array features
   TOKEN_CANOPY,   //  map features
