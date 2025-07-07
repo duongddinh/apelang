@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 #include "compiler.h"
-#include "lexer.h"
+#include "../lexer/lexer.h"
 
 typedef struct {
   Token name;

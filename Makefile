@@ -1,23 +1,37 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -g
+CFLAGS = -Wall -Wextra -std=c99 -g -Isrc
 LDFLAGS = -lm
 
-SRCS = main.c lexer.c compiler.c vm.c debug.c
+# Source directories
+SRC_DIR := src
+LEXER_DIR := $(SRC_DIR)/lexer
+COMPILER_DIR := $(SRC_DIR)/compiler
+VM_DIR := $(SRC_DIR)/vm
+DEBUG_DIR := $(SRC_DIR)/debug
 
-OBJS = $(SRCS:.c=.o)
+# Source files
+SRCS := \
+	$(SRC_DIR)/main.c \
+	$(LEXER_DIR)/lexer.c \
+	$(COMPILER_DIR)/compiler.c \
+	$(VM_DIR)/vm.c \
+	$(DEBUG_DIR)/debug.c
 
-TARGET = apeslang
+# Object files
+OBJS := $(SRCS:.c=.o)
+
+# Executable
+TARGET := apeslang
 
 all: $(TARGET)
 
-# Link the math library (-lm) when creating the executable
 $(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJS) $(TARGET) *.apb
+	rm -f $(OBJS) $(TARGET) build/*.apb
 
 .PHONY: all clean

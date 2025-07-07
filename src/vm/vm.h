@@ -1,7 +1,7 @@
 #ifndef APE_VM_H
 #define APE_VM_H
 
-#include "common.h"
+#include "../common.h"
 
 // The result of a VM execution
 typedef enum {

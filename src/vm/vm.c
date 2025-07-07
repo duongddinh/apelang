@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "compiler.h"
-#include "debug.h"
+#include "../compiler/compiler.h"
+#include "../debug/debug.h"
 #include "vm.h"
 
 #define GC_HEAP_GROW_FACTOR 2

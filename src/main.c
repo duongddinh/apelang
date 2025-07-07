@@ -1,8 +1,8 @@
 #include "common.h"
-#include "compiler.h"
-#include "vm.h"
-#include "debug.h"
-#include "lexer.h" 
+#include "./compiler/compiler.h"
+#include "./vm/vm.h"
+#include "./debug/debug.h"
+#include "./lexer/lexer.h" 
 
 static char* processedFiles[1024];
 static int processedCount = 0;
