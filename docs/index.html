@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="apelang.png">
+    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/duongddinh/apelang/main/docs/apelang.png" onerror="this.onerror=null;this.src='https://placehold.co/32x32/f1c40f/3d2c1d?text=A';">
 
-    <title>Apelang Playground</title>
+    <title>Apelang Playground & Hackathon</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
 
@@ -24,13 +24,14 @@
             --code-text: #f0f0f0;
             --border-color: #e0e0e0;
             --shadow-color: rgba(0, 0, 0, 0.08);
+            --tab-inactive: #eaddc7;
         }
 
         body {
             font-family: 'Inter', sans-serif;
             background-color: var(--background);
             margin: 0;
-            padding: 2rem;
+            padding: 1rem;
             display: flex;
             justify-content: center;
             align-items: flex-start;
@@ -44,20 +45,27 @@
             background-color: var(--container-bg);
             border-radius: 16px;
             box-shadow: 0 8px 32px var(--shadow-color); 
-            padding: 2.5rem;
+            padding: 1.5rem;
             box-sizing: border-box;
         }
 
         h1 {
-            font-size: 2.8rem;
+            font-size: 2.2rem;
             font-weight: 700;
             text-align: center;
             color: var(--primary-text);
             margin-bottom: 0.5rem;
         }
+        
+        .page-icon {
+            display: block;
+            margin: 1rem auto 1.5rem; 
+            width: 80px; 
+            height: auto;
+        }
 
         .subtitle {
-            font-size: 1.1rem;
+            font-size: 1rem;
             line-height: 1.6;
             color: var(--secondary-text);
             text-align: center;
@@ -76,9 +84,45 @@
             text-decoration: underline;
         }
 
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        .tab-link {
+            padding: 0.8rem 1rem;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--secondary-text);
+            background-color: var(--tab-inactive);
+            border: none;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+            margin-right: 5px;
+            position: relative;
+            bottom: -2px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            text-align: center;
+        }
+        .tab-link.active {
+            background-color: var(--container-bg);
+            color: var(--primary-text);
+            border: 2px solid var(--border-color);
+            border-bottom: 2px solid var(--container-bg);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
         .code-section label {
             display: block;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: 600;
             color: var(--primary-text);
             margin-bottom: 1rem;
@@ -91,9 +135,9 @@
             border-radius: 12px;
             border: 1px solid #3a3a3a;
             font-family: 'Fira Code', monospace;
-            font-size: 1rem;
+            font-size: 0.95rem;
             width: 100%;
-            min-height: 350px;
+            min-height: 300px;
             resize: vertical;
             box-sizing: border-box;
             line-height: 1.6;
@@ -101,15 +145,15 @@
 
         .button-group {
             display: flex;
-            justify-content: center;
-            gap: 1rem;
+            flex-direction: column;
+            gap: 0.75rem;
             margin: 1.5rem 0;
         }
 
         .button {
             background-color: var(--accent-color);
             color: var(--primary-text);
-            padding: 14px 28px;
+            padding: 14px 20px;
             border: none;
             border-radius: 10px;
             font-weight: 700;
@@ -132,7 +176,7 @@
             background-color: var(--error-hover);
         }
 
-        .status-block {
+        .status-block, .output-block {
             background-color: #fdfdfd;
             color: var(--secondary-text);
             padding: 1rem;
@@ -140,9 +184,16 @@
             font-family: 'Fira Code', monospace;
             font-size: 0.9rem;
             border: 1px solid var(--border-color);
-            margin-top: 2rem;
             white-space: pre-wrap;
             word-wrap: break-word;
+        }
+        
+        .output-block {
+            background-color: var(--code-bg);
+            color: #e0e0e0;
+            min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
         }
 
         .status-block.success {
@@ -155,22 +206,124 @@
             background-color: #fff2f2;
         }
 
-        .output-block {
-            background-color: var(--code-bg);
-            color: #e0e0e0;
-            padding: 1rem;
+        .info-section {
+            background-color: #fffcf5;
+            border: 1px solid var(--border-color);
             border-radius: 12px;
-            min-height: 150px;
-            max-height: 400px;
+            padding: 0;
+            margin-bottom: 2.5rem;
+            overflow: hidden;
+        }
+        .info-section-header {
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+        .info-section-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        .info-section-header .toggle-icon {
+            font-size: 1.5rem;
+            font-weight: bold;
+            transition: transform 0.3s ease;
+        }
+        .info-section-content {
+            padding: 0 1.5rem 1.5rem 1.5rem;
+            max-height: 2500px;
             overflow-y: auto;
-            font-family: 'Fira Code', monospace;
-            font-size: 0.95rem;
-            line-height: 1.6;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            margin-top: 1rem;
+            transition: max-height 0.5s ease-in-out, padding 0.5s ease-in-out, visibility 0.5s;
+        }
+        .info-section.collapsed .info-section-content {
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            visibility: hidden;
+        }
+        .info-section.collapsed .toggle-icon {
+            transform: rotate(-90deg);
         }
 
+        .info-section h3 {
+            color: var(--primary-text);
+            text-align: left;
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .info-section p, .info-section li {
+            color: var(--secondary-text);
+            line-height: 1.7;
+            text-align: left;
+        }
+        .info-section ul {
+            padding-left: 20px;
+            margin-top: 0;
+            list-style-type: '🍌';
+            padding-left: 25px;
+        }
+        .info-section li {
+            margin-bottom: 0.5rem;
+            padding-left: 10px;
+        }
+        .info-section code, pre code {
+            background-color: var(--tab-inactive);
+            padding: 0.2em 0.4em;
+            margin: 0;
+            font-size: 85%;
+            border-radius: 6px;
+            font-family: 'Fira Code', monospace;
+            color: var(--primary-text);
+        }
+        .info-section pre {
+            background-color: #f0f0f0;
+            padding: 1rem;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.85rem;
+        }
+        .info-section .problem-list-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-top: 2rem;
+        }
+        .bounty-box {
+            background-color: #e8f5e9;
+            border: 2px dashed var(--success-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 2.5rem;
+            text-align: center;
+        }
+        .bounty-box h3 {
+            font-size: 1.5rem;
+            color: var(--success-color);
+            margin-top: 0;
+        }
+        .bounty-box p {
+            font-size: 1rem;
+            color: var(--primary-text);
+        }
+        .bounty-box a {
+            color: var(--success-hover);
+            font-weight: 700;
+        }
+        .simulation-note {
+            font-size: 0.9rem;
+            text-align: center;
+            font-style: italic;
+            background-color: var(--accent-hover);
+            color: var(--primary-text);
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+        
         .modal {
             position: fixed;
             z-index: 1000;
@@ -243,100 +396,86 @@
             background-color: var(--success-hover);
             transform: translateY(-2px);
         }
-        .page-icon {
-    display: block;
-    margin: 1rem auto 1.5rem; 
-    width: 100px; 
-    height: auto;
-}
-.about-section {
-    background-color: #fffcf5;
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 1.5rem 2rem;
-    margin-bottom: 2.5rem;
-}
 
-.about-section h2, .about-section h3 {
-    color: var(--primary-text);
-    text-align: left;
-    margin-bottom: 0.75rem;
-}
-
-.about-section p, .about-section li {
-    color: var(--secondary-text);
-    line-height: 1.7;
-    text-align: left;
-}
-
-.about-section ul {
-    padding-left: 20px;
-    margin-top: 0;
-}
-
-.about-section li {
-    margin-bottom: 0.5rem;
-}
+        @media (min-width: 768px) {
+            body {
+                padding: 2rem;
+            }
+            .container {
+                padding: 2.5rem;
+            }
+            h1 {
+                font-size: 2.8rem;
+            }
+            .subtitle {
+                font-size: 1.1rem;
+            }
+            .button-group {
+                flex-direction: row;
+            }
+            .info-section-header h2 {
+                font-size: 1.8rem;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🍌 Apelang Playground 🦍</h1>
-            <img src="apelang.png" alt="Apelang Icon" class="page-icon"> 
-
+        <img src="https://raw.githubusercontent.com/duongddinh/apelang/main/docs/apelang.png" alt="Apelang Icon" class="page-icon" onerror="this.onerror=null;this.src='https://placehold.co/100x100/f1c40f/3d2c1d?text=A';">
         <p class="subtitle">
             A <strong>simulated</strong> jungle for the Apelang language.
             Find the real tribe on <a href="https://github.com/duongddinh/apelang" target="_blank">GitHub</a>.
         </p>
-<div class="about-section">
-    <h2>Welcome to Apelang!</h2>
-    <p>
-        Welcome, fellow primates, to Apelang! Before there was <a href="https://github.com/duongddinh/humanlang">Humanlang</a> (you know, that fancy language with all the words and logic at humanlang), there was Apelang. This is where it all began, deep in the digital jungle, with grunts, gestures, and the occasional banana.
-    </p>
-    <p>
-        Apelang is a prehistoric programming language. Forget your high-level abstractions and complex frameworks; Apelang operates on pure, unadulterated primate instinct. It's simple, it's raw, and it's surprisingly effective for tasks that involve a lot of swinging, asking, and printing trees.
-    </p>
 
-    <h3>Core Concepts</h3>
-    <ul>
-        <li><strong>Variables:</strong> Declare variables with the <code>ape</code> keyword (e.g., <code>ape bananas = 10</code>). Basic types include numbers, strings, booleans (<code>true</code>, <code>false</code>), and <code>nil</code>.</li>
-        <li><strong>I/O:</strong> Print to the console with <code>tree</code> and get user input with <code>ask()</code>.</li>
-        <li><strong>Comments:</strong> Use <code>#</code> for single-line comments to leave notes for other apes.</li>
-        <li><strong>Thematic Operators:</strong> Perform arithmetic with primal grunts: <code>ooh</code> (+), <code>aah</code> (-), <code>eek</code> (*), and <code>ook</code> (/).</li>
-        <li><strong>Functions (Tribes):</strong> Group your code into reusable blocks called a <code>tribe</code>. Use <code>give</code> to return a value.</li>
-    </ul>
+        <div class="tabs">
+            <a href="#playground" class="tab-link active" data-tab="playground">Playground</a>
+            <a href="#hackathon" class="tab-link" data-tab="hackathon">Jungle Hackathon</a>
+        </div>
 
-    <h3>Data Structures</h3>
-    <ul>
-        <li><strong>Bunch (Arrays):</strong> Create an ordered list of items, or a "bunch," using square brackets: <code>ape myBunch = [1, "two", true]</code>. Access elements with a numeric index, like <code>myBunch[0]</code>.</li>
-        <li><strong>Canopy (Maps):</strong> Create a key-value store, like a "canopy" of knowledge, using curly braces: <code>ape myCanopy = {"food": "banana", "sound": "ooh"}</code>. Access values using their string key, like <code>myCanopy["food"]</code>.</li>
-    </ul>
+        <div id="playground" class="tab-content active">
+            <div class="info-section">
+                <div class="info-section-header">
+                    <h2>Welcome to the Jungle!</h2>
+                    <span class="toggle-icon">▾</span>
+                </div>
+                <div class="info-section-content">
+                    <p>Apelang operates on pure, unadulterated primate instinct. It's simple, it's raw, and it's surprisingly effective. Here are the tools at your disposal.</p>
+                    <p class="simulation-note"><strong>Note:</strong> This playground is a simplified simulation. It supports most of the core syntax but does not include advanced features like <code>summon</code>, <code>forage</code>, <code>inscribe</code>, or <code>tumble</code>/<code>catch</code> blocks.</p>
+                    
+                    <h3>Core Concepts</h3>
+                    <ul>
+                        <li><strong>Variables & Types:</strong> Declare with <code>ape</code>. Basic types include <code>number</code>, <code>string</code>, <code>boolean</code> (<code>true</code>, <code>false</code>), and <code>nil</code>.</li>
+                        <li><strong>Comments:</strong> Use <code>#</code> to leave notes for other apes.</li>
+                        <li><strong>I/O:</strong> Print to the console with <code>tree</code> and get user input with <code>ask()</code>.</li>
+                        <li><strong>Thematic Operators:</strong> Perform arithmetic with <code>ooh</code> (+), <code>aah</code> (-), <code>eek</code> (*), and <code>ook</code> (/).</li>
+                        <li><strong>Functions (Tribes):</strong> Group code into reusable blocks with <code>tribe</code>. Use <code>give</code> to return a value.</li>
+                    </ul>
 
-    <h3>Control Flow</h3>
-    <ul>
-        <li><strong>Conditionals:</strong> Use standard <code>if</code> and <code>else</code> blocks to make decisions.</li>
-        <li><strong>Logical Operators:</strong> Combine conditions with <code>ripe</code> (AND) and <code>yellow</code> (OR).</li>
-        <li><strong>Swing Loops (For-style):</strong> Repeat an action a set number of times: <code>swing 5 { tree "Swinging!" }</code>.</li>
-        <li><strong>Banana Loops (While-style):</strong> Loop as long as a condition is true: <code>banana bananas > 0 { ... }</code>.</li>
-    </ul>
+                    <h3>Data Structures</h3>
+                    <ul>
+                        <li><strong>Bunch (Arrays):</strong> Create an ordered list of items: <code>ape myBunch = [1, "two", true]</code>.</li>
+                        <li><strong>Canopy (Maps):</strong> Create a key-value store: <code>ape myCanopy = {"food": "banana"}</code>.</li>
+                    </ul>
 
-    <h3>Error Handling & Modules</h3>
-    <ul>
-        <li><strong>Error Handling:</strong> Safely handle potential runtime errors (like a clumsy ape) using <code>tumble</code> and <code>catch</code> blocks, similar to try-catch.</li>
-        <li><strong>Modules:</strong> Import code from other files to build a larger tribe with the <code>summon</code> keyword: <code>summon "helpers.ape"</code>.</li>
-    </ul>
-</div>
-        <div class="code-section">
-            <label for="codeInput">Scribble your Ape Code:</label>
-            <textarea id="codeInput" class="code-input" placeholder="Type your Apelang code here...">
+                    <h3>Control Flow & Logic</h3>
+                    <ul>
+                        <li><strong>Conditionals:</strong> Use <code>if</code>/<code>else</code> blocks. Combine conditions with logical operators <code>ripe</code> (AND) and <code>yellow</code> (OR).</li>
+                        <li><strong>Loops:</strong> Use <code>swing</code> for a set number of repetitions and <code>banana</code> for while-style loops.</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="code-section">
+                <label for="codeInput">Scribble your Ape Code:</label>
+                <textarea id="codeInput" class="code-input" placeholder="Type your Apelang code here...">
 # Apelang Playground Example
 ape bananas = 10
 tree "Initial bananas: " ooh bananas
 
-if bananas > 5 {
+if bananas > 5 ripe bananas < 20 {
     tree "Plenty of bananas!"
 } else {
-    tree "Need more bananas."
+    tree "Need more or fewer bananas."
 }
 
 ape count = 3
@@ -347,28 +486,92 @@ swing count {
 tree "What's your favorite jungle fruit?"
 ape fruit = ask()
 tree "You like " ooh fruit ooh "! OOH-OOH-AAH-AAH!"
-
-tribe greet(name) {
-    tree "Hello, " ooh name ooh " from the tribe!"
-    give nil
-}
-greet("Gorilla Gary")
-            </textarea>
+                </textarea>
+            </div>
+            <div class="button-group">
+                <button id="runCodeBtn" class="button">Go Bananas! 🍌</button>
+                <button id="clearOutputBtn" class="button clear">Clear Jungle</button>
+            </div>
+            
+            <div class="info-section collapsed" id="terminal-section">
+                <div class="info-section-header">
+                    <h2>Jungle Terminal</h2>
+                    <span class="toggle-icon">▾</span>
+                </div>
+                <div class="info-section-content">
+                    <div class="code-section">
+                        <label for="compilationStatus">Jungle Drums (Compiler):</label>
+                        <pre id="compilationStatus" class="status-block"></pre>
+                    </div>
+                    <div class="code-section">
+                        <label for="outputArea">Jungle Output:</label>
+                        <pre id="outputArea" class="output-block"></pre>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div class="button-group">
-            <button id="runCodeBtn" class="button">Go Bananas! 🍌</button>
-            <button id="clearOutputBtn" class="button clear">Clear Jungle</button>
-        </div>
+        <div id="hackathon" class="tab-content">
+            <div class="info-section">
+                 <div class="info-section-header" style="cursor: default;">
+                    <h2>The Great Jungle Hackathon</h2>
+                </div>
+                <div class="info-section-content">
+                    <p>Think your Apelang skills are sharp? Ready to solve some real jungle puzzles? Here's your chance to prove you're the alpha ape and earn some shiny pebbles (or, you know, actual money).</p>
+                    <p class="simulation-note" style="background-color: var(--error-color); color: white;"><strong>Important:</strong> Do not solve these challenges in this playground! It is a simplified simulation and will not work for complex solutions. You must install Apelang locally.</p>
+                    
+                    <h3>Prerequisites & Tools</h3>
+                    <p>To make your hacking easier, we recommend the following:</p>
+                    <ul>
+                        <li>
+                            <strong>Install Apelang Locally:</strong> For the best experience, install the full Apelang compiler.
+                            <pre><code>git clone https://github.com/duongddinh/apelang.git
+cd apelang
+chmod +x install.sh
+./install.sh</code></pre>
+                        </li>
+                        <li>
+                            <strong>VS Code Extension:</strong> If you use VS Code, get the official syntax highlighter for a much better coding experience.
+                            <a href="https://marketplace.visualstudio.com/items?itemName=duongddinh.ape" target="_blank">Install from Marketplace</a>
+                        </li>
+                         <li>
+                            <strong>Helpful Modules:</strong> You can use the <code>apebanana</code> package manager to install modules that might aid your quest.
+                            <pre><code>apebanana install math
+apebanana install string_utils</code></pre>
+                        </li>
+                        <li><strong>Apelang Documentation:</strong> Refresh your knowledge of Ape-speak by visiting the <a href="https://github.com/duongddinh/apelang" target="_blank">official Apelang docs</a>.</li>
+                    </ul>
 
-        <div class="code-section">
-            <label for="compilationStatus">Jungle Drums (Compiler):</label>
-            <pre id="compilationStatus" class="status-block"></pre>
-        </div>
+                    <h3 class="problem-list-title">The Challenges</h3>
+                    <p>Solve any of the following LeetCode problems using the local Apelang compiler. Your code should be clean, efficient, and well-commented (in Ape-speak, of course).</p>
+                    
+                    <h4>Array (<code>bunch</code>) & Hash Table (<code>canopy</code>) Problems</h4>
+                    <ul>
+                        <li><b>1.</b> Two Sum</li>
+                        <li><b>217.</b> Contains Duplicate</li>
+                        <li><b>242.</b> Valid Anagram</li>
+                        <li><b>136.</b> Single Number</li>
+                        <li><b>283.</b> Move Zeroes</li>
+                        <li><b>448.</b> Find All Numbers Disappeared in an Array</li>
+                    </ul>
 
-        <div class="code-section">
-            <label for="outputArea">Jungle Output:</label>
-            <pre id="outputArea" class="output-block"></pre>
+                    <h4>String Manipulation Problems</h4>
+                    <ul>
+                        <li><b>9.</b> Palindrome Number (solve by converting to string)</li>
+                        <li><b>125.</b> Valid Palindrome</li>
+                        <li><b>344.</b> Reverse String</li>
+                        <li><b>28.</b> Find the Index of the First Occurrence in a String</li>
+                        <li><b>13.</b> Roman to Integer</li>
+                    </ul>
+
+                    <div class="bounty-box">
+                        <h3>🍌 Earn Your Bananas! 🍌</h3>
+                        <p>Each valid and correct LeetCode solution gives you a <strong>chance to win $3.00 USD</strong>.</p>
+                        <p>Send your completed <code>.ape</code> code file as an attachment to <a href="mailto:support@fragella.com?subject=Apelang Hackathon Submission"><strong>support@fragella.com</strong></a> with the subject line "Apelang Hackathon Submission". Include the LeetCode problem number in your email.</p>
+                        <p>Happy hacking, you magnificent primate!</p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div id="askModal" class="modal">
@@ -381,263 +584,249 @@ greet("Gorilla Gary")
     </div>
 
     <script>
-        const codeInput = document.getElementById('codeInput');
-        const outputArea = document.getElementById('outputArea');
-        const compilationStatus = document.getElementById('compilationStatus');
-        const runCodeBtn = document.getElementById('runCodeBtn');
-        const clearOutputBtn = document.getElementById('clearOutputBtn');
-        const askModal = document.getElementById('askModal');
-        const askPrompt = document.getElementById('askPrompt');
-        const askInput = document.getElementById('askInput');
-        const askSubmitBtn = document.getElementById('askSubmitBtn');
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabs = document.querySelectorAll('.tab-link');
+            const tabContents = document.querySelectorAll('.tab-content');
 
-        const initialOutputText = "🌴 🦍  OOH-OOH-AAH-AAH!  WELCOME TO THE BANANA JUNGLE  🦍 🌴\nApesLang VM Output";
+            function showTab(hash) {
+                const targetId = hash ? hash.substring(1) : 'playground';
+                const targetTab = document.querySelector(`.tab-link[data-tab="${targetId}"]`);
+                const targetContent = document.getElementById(targetId);
 
-        let variables = {};
-        let outputBuffer = [];
-        let askResolve = null;
+                tabs.forEach(item => item.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
 
-        function initializePlayground() {
-            outputArea.textContent = initialOutputText;
-            compilationStatus.textContent = 'Ready for some monkey business...';
-            compilationStatus.classList.remove('success', 'error');
-        }
+                if (targetTab && targetContent) {
+                    targetTab.classList.add('active');
+                    targetContent.classList.add('active');
+                } else {
+                    document.querySelector('.tab-link[data-tab="playground"]').classList.add('active');
+                    document.getElementById('playground').classList.add('active');
+                }
+            }
 
-        function simulatePrint(value) {
-            outputBuffer.push(String(value));
-        }
-
-        async function simulateAsk() {
-            return new Promise(resolve => {
-                askPrompt.textContent = "The jungle asks:";
-                askInput.value = '';
-                askModal.classList.add('show');
-                askInput.focus();
-                askResolve = resolve;
+            tabs.forEach(tab => {
+                tab.addEventListener('click', (e) => {
+                    window.location.hash = e.target.getAttribute('href');
+                });
             });
-        }
 
-        askSubmitBtn.onclick = () => {
-            if (askResolve) {
-                askModal.classList.remove('show');
-                askResolve(askInput.value);
-                askResolve = null;
-            }
-        };
+            window.addEventListener('hashchange', () => showTab(window.location.hash));
+            showTab(window.location.hash);
 
-        function evaluateExpression(expr) {
-            expr = expr.trim();
-            const oohParts = expr.split(/\s+ooh\s+(?=(?:[^"]*"[^"]*")*[^"]*$)/);
-            if (oohParts.length > 1) {
-                let result = evaluateExpression(oohParts[0]);
-                for (let i = 1; i < oohParts.length; i++) {
-                    let nextVal = evaluateExpression(oohParts[i]);
-                    if (typeof result === 'number' && typeof nextVal === 'number') {
-                        result += nextVal;
-                    } else {
-                        result = String(result) + String(nextVal);
-                    }
+            document.querySelectorAll('.info-section-header').forEach(header => {
+                const section = header.closest('.info-section');
+                if (header.closest('.tab-content').id === 'playground') {
+                     header.addEventListener('click', () => {
+                        section.classList.toggle('collapsed');
+                    });
                 }
-                return result;
-            }
-            const arithmeticOperators = {
-                'eek': (a, b) => a * b, 'ook': (a, b) => a / b, 'aah': (a, b) => a - b,
-            };
-            for (const op in arithmeticOperators) {
-                const parts = expr.split(new RegExp(`\\s*${op}\\s+(?=(?:[^"]*"[^"]*")*[^"]*$)`));
-                if (parts.length > 1) return parts.map(evaluateExpression).reduce(arithmeticOperators[op]);
-            }
-            const comparisonOperators = {
-                '==': (a, b) => a === b, '!=': (a, b) => a !== b, '>=': (a, b) => a >= b,
-                '<=': (a, b) => a <= b, '>': (a, b) => a > b, '<': (a, b) => a < b,
-            };
-            for (const op in comparisonOperators) {
-                const parts = expr.split(new RegExp(`\\s*${op}\\s+(?=(?:[^"]*"[^"]*")*[^"]*$)`));
-                if (parts.length === 2) {
-                    const val1 = evaluateExpression(parts[0]);
-                    const val2 = evaluateExpression(parts[1]);
-                    return comparisonOperators[op](val1, val2);
-                }
-            }
-            if (expr.startsWith('(') && expr.endsWith(')')) return evaluateExpression(expr.slice(1, -1));
-            if (expr.startsWith('!')) return !evaluateExpression(expr.substring(1));
-            if (!isNaN(parseFloat(expr)) && isFinite(expr)) return parseFloat(expr);
-            if (expr === 'true') return true;
-            if (expr === 'false') return false;
-            if (expr === 'nil') return null;
-            if (expr.startsWith('"') && expr.endsWith('"')) return expr.slice(1, -1);
-            if (variables.hasOwnProperty(expr)) return variables[expr];
-            if (expr.endsWith('()') && expr.startsWith('greet')) return '<tribe greet>';
-            return undefined;
-        }
+            });
 
-        function parseBlock(lines, startIndex) {
-            const blockLines = [];
-            let braceCount = 1;
-            let endIndex = -1;
-            for (let j = startIndex + 1; j < lines.length; j++) {
-                const line = lines[j].trim();
-                if (line.includes('}')) braceCount--;
-                if (braceCount === 0) { endIndex = j; break; }
-                if (line.includes('{')) braceCount++;
-                if (!line.includes('{') && !line.includes('}')) blockLines.push(line);
-            }
-            return { blockLines, endIndex };
-        }
+            const codeInput = document.getElementById('codeInput');
+            const outputArea = document.getElementById('outputArea');
+            const compilationStatus = document.getElementById('compilationStatus');
+            const runCodeBtn = document.getElementById('runCodeBtn');
+            const clearOutputBtn = document.getElementById('clearOutputBtn');
+            const askModal = document.getElementById('askModal');
+            const askPrompt = document.getElementById('askPrompt');
+            const askInput = document.getElementById('askInput');
+            const askSubmitBtn = document.getElementById('askSubmitBtn');
 
-        function checkSyntax(codeLines) {
-            const errors = [];
-            const blockStack = [];
-            const patterns = {
-                ape: /^ape\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.*)$/,
-                tree: /^tree\s+(.*)$/, if: /^if\s+.*\s*\{$/, else: /^else\s*\{$/,
-                close_else_open: /^\}\s*else\s*\{$/, swing: /^swing\s+.*\s*\{$/,
-                tribe: /^tribe\s+.*\s*\{$/, call: /^([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*)\)$/,
-                give: /^give\s*(.*)$/, close_brace: /^\}$/,
-            };
-            for (let i = 0; i < codeLines.length; i++) {
-                const line = codeLines[i].trim();
-                const lineNumber = i + 1;
-                if (!line || line.startsWith('#')) continue;
-                let lineIsValid = false;
-                if (patterns.if.test(line)) {
-                    blockStack.push({ type: 'if', lineNumber }); lineIsValid = true;
-                } else if (patterns.swing.test(line) || patterns.tribe.test(line)) {
-                    blockStack.push({ type: 'other', lineNumber }); lineIsValid = true;
-                } else if (patterns.close_else_open.test(line)) {
-                    if (blockStack.length === 0 || blockStack.pop().type !== 'if') {
-                        errors.push(`Syntax Error on line ${lineNumber}: 'else' doesn't follow a valid 'if'.`);
-                    } else { blockStack.push({ type: 'else', lineNumber }); }
-                    lineIsValid = true;
-                } else if (patterns.else.test(line)) {
-                    const prevLine = i > 0 ? codeLines[i - 1].trim() : "";
-                    if (prevLine !== '}') errors.push(`Syntax Error on line ${lineNumber}: Misplaced 'else'.`);
-                    else if (blockStack.length === 0 || blockStack.pop().type !== 'if') {
-                        errors.push(`Syntax Error on line ${lineNumber}: 'else' doesn't follow a valid 'if'.`);
-                    } else { blockStack.push({ type: 'else', lineNumber }); }
-                    lineIsValid = true;
-                } else if (patterns.close_brace.test(line)) {
-                    if (blockStack.length > 0) blockStack.pop();
-                    else errors.push(`Syntax Error on line ${lineNumber}: Unexpected '}'.`);
-                    lineIsValid = true;
-                } else if (patterns.ape.test(line) || patterns.tree.test(line) || patterns.call.test(line) || patterns.give.test(line)) {
-                    lineIsValid = true;
-                }
-                if (!lineIsValid) errors.push(`Syntax Error on line ${lineNumber}: Unrecognized statement: "${line}"`);
-            }
-            if (blockStack.length > 0) {
-                const unclosedBlock = blockStack.pop();
-                errors.push(`Syntax Error: Unclosed block from line ${unclosedBlock.lineNumber}.`);
-            }
-            return { success: errors.length === 0, messages: errors };
-        }
+            const initialOutputText = "🌴 🦍  OOH-OOH-AAH-AAH!  WELCOME TO THE BANANA JUNGLE  🦍 🌴\nApesLang VM Output";
+            let variables = {};
+            let functions = {};
+            let outputBuffer = [];
+            let askResolve = null;
 
-        async function runApelangCode() {
-            outputBuffer = [];
-            variables = {};
-            const code = codeInput.value;
-            const lines = code.split('\n');
-            const syntaxCheckResult = checkSyntax(lines);
-
-            compilationStatus.classList.remove('success', 'error');
-
-            if (!syntaxCheckResult.success) {
-                compilationStatus.textContent = "Jungle drums are confused:\n" + syntaxCheckResult.messages.join('\n');
-                compilationStatus.classList.add('error');
+            function initializePlayground() {
                 outputArea.textContent = initialOutputText;
-                return;
-            } else {
-                compilationStatus.textContent = "Compilation successful. 🦍🍌";
-                compilationStatus.classList.add('success');
+                compilationStatus.textContent = 'Ready for some monkey business...';
+                compilationStatus.classList.remove('success', 'error');
             }
 
-            for (let i = 0; i < lines.length; i++) {
-                let line = lines[i].trim();
-                if (line.length === 0 || line.startsWith('#')) continue;
-                await processLine(line, lines, i).then(newIndex => {
-                    if (newIndex !== null) i = newIndex;
+            function simulatePrint(value) {
+                outputBuffer.push(String(value));
+            }
+
+            async function simulateAsk() {
+                return new Promise(resolve => {
+                    askPrompt.textContent = "The jungle asks:";
+                    askInput.value = '';
+                    askModal.classList.add('show');
+                    askInput.focus();
+                    askResolve = resolve;
                 });
             }
 
-            outputArea.textContent = `${initialOutputText}\n\n${outputBuffer.join('\n')}`;
-            outputArea.scrollTop = outputArea.scrollHeight;
-        }
+            askSubmitBtn.onclick = () => {
+                if (askResolve) {
+                    askModal.classList.remove('show');
+                    askResolve(askInput.value);
+                    askResolve = null;
+                }
+            };
+            
+            function evaluateExpression(expr, scope = variables) {
+                expr = expr.trim();
 
-        async function processLine(line, lines, currentIndex) {
-            let originalIndex = currentIndex;
-            
-            let matchVar = line.match(/^ape\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.*)$/);
-            if (matchVar) {
-                let varName = matchVar[1]; let expr = matchVar[2];
-                if (expr.endsWith('ask()')) variables[varName] = await simulateAsk();
-                else variables[varName] = evaluateExpression(expr);
-                return null;
-            }
-            
-            let matchTree = line.match(/^tree\s+(.*)$/);
-            if (matchTree) {
-                simulatePrint(evaluateExpression(matchTree[1]));
-                return null;
-            }
-            
-            let matchIf = line.match(/^if\s+(.*)\s*\{$/);
-            if (matchIf) {
-                let condition = evaluateExpression(matchIf[1].trim());
-                const { blockLines: ifBlockLines, endIndex: ifBlockEndIndex } = parseBlock(lines, currentIndex);
-                let elseFound = (lines[ifBlockEndIndex] && lines[ifBlockEndIndex].includes('} else {')) || (lines[ifBlockEndIndex + 1] && lines[ifBlockEndIndex + 1].trim().startsWith('else'));
-                let elseStartLineIndex = elseFound ? (lines[ifBlockEndIndex + 1] && lines[ifBlockEndIndex + 1].trim().startsWith('else') ? ifBlockEndIndex + 1 : ifBlockEndIndex) : -1;
+                const logicalOperators = { 'ripe': '&&', 'yellow': '||' };
+                for (const op in logicalOperators) {
+                    const parts = expr.split(new RegExp(`\\s+${op}\\s+`));
+                    if (parts.length > 1) {
+                        return parts.map(p => evaluateExpression(p, scope)).reduce((a, b) => {
+                            const jsOp = logicalOperators[op];
+                            return eval(`${a} ${jsOp} ${b}`);
+                        }, true);
+                    }
+                }
+
+                const comparisonOperators = { '==': '===', '!=': '!==', '>=': '>=', '<=': '<=', '>': '>', '<': '<' };
+                for (const op in comparisonOperators) {
+                    const parts = expr.split(new RegExp(`\\s*${op}\\s*`));
+                    if (parts.length === 2) {
+                        const val1 = evaluateExpression(parts[0], scope);
+                        const val2 = evaluateExpression(parts[1], scope);
+                        return comparisonOperators[op] === '===' ? val1 == val2 : comparisonOperators[op] === '!==' ? val1 != val2 : eval(`${val1} ${comparisonOperators[op]} ${val2}`);
+                    }
+                }
                 
-                if (elseFound) {
-                    const { blockLines: elseBlockLines, endIndex: elseBlockEndIndex } = parseBlock(lines, elseStartLineIndex);
-                    const linesToProcess = condition ? ifBlockLines : elseBlockLines;
-                    for (const blockLine of linesToProcess) await processLine(blockLine, [], 0); // Recursive call for block content
-                    return elseBlockEndIndex;
-                } else {
-                    if (condition) for (const blockLine of ifBlockLines) await processLine(blockLine, [], 0);
-                    return ifBlockEndIndex;
+                const arithmeticOperators = { 'ooh': '+', 'aah': '-', 'eek': '*', 'ook': '/' };
+                for (const op in arithmeticOperators) {
+                     const parts = expr.split(new RegExp(`\\s+${op}\\s+(?=(?:[^"]*"[^"]*")*[^"]*$)`));
+                     if (parts.length > 1) {
+                        let result = evaluateExpression(parts[0], scope);
+                        for (let i = 1; i < parts.length; i++) {
+                            let nextVal = evaluateExpression(parts[i], scope);
+                            if (op === 'ooh' && (typeof result === 'string' || typeof nextVal === 'string')) {
+                                result = String(result) + String(nextVal);
+                            } else {
+                                result = eval(`${result} ${arithmeticOperators[op]} ${nextVal}`);
+                            }
+                        }
+                        return result;
+                    }
                 }
-            }
 
-            let matchSwing = line.match(/^swing\s+([a-zA-Z0-9_.]+)\s*\{$/);
-            if (matchSwing) {
-                let loopCount = evaluateExpression(matchSwing[1]);
-                if (typeof loopCount !== 'number') { simulatePrint("ERROR: 'swing' needs a number."); return currentIndex; }
-                const { blockLines: swingBlockLines, endIndex: swingBlockEndIndex } = parseBlock(lines, currentIndex);
-                if (swingBlockEndIndex === -1) { simulatePrint("ERROR: Unclosed 'swing' block."); return currentIndex; }
-                for (let iter = 0; iter < loopCount; iter++) {
-                    for (const blockLine of swingBlockLines) await processLine(blockLine, [], 0);
+                if (expr.startsWith('(') && expr.endsWith(')')) return evaluateExpression(expr.slice(1, -1), scope);
+                if (expr.startsWith('!')) return !evaluateExpression(expr.substring(1), scope);
+                if (!isNaN(parseFloat(expr)) && isFinite(expr)) return parseFloat(expr);
+                if (expr === 'true') return true;
+                if (expr === 'false') return false;
+                if (expr === 'nil') return null;
+                if (expr.startsWith('"') && expr.endsWith('"')) return expr.slice(1, -1);
+                if (scope.hasOwnProperty(expr)) return scope[expr];
+                
+                const callMatch = expr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\((.*)\)$/);
+                if (callMatch && functions[callMatch[1]]) {
+                    const func = functions[callMatch[1]];
+                    const args = callMatch[2] ? callMatch[2].split(',').map(arg => evaluateExpression(arg.trim(), scope)) : [];
+                    const funcScope = { ...scope };
+                    func.params.forEach((param, i) => {
+                        funcScope[param] = args[i];
+                    });
+                    
+                    let returnValue = null;
+                    for (const line of func.body) {
+                        const giveMatch = line.trim().match(/^give\s+(.*)$/);
+                        if (giveMatch) {
+                            returnValue = evaluateExpression(giveMatch[1], funcScope);
+                            break; 
+                        }
+                        processLine(line, [], 0, funcScope);
+                    }
+                    return returnValue;
                 }
-                return swingBlockEndIndex;
+
+                return undefined;
             }
 
-            let matchTribe = line.match(/^tribe\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*)\)\s*\{$/);
-            if (matchTribe) {
-                const { endIndex: tribeBlockEndIndex } = parseBlock(lines, currentIndex);
-                if (tribeBlockEndIndex === -1) { simulatePrint("ERROR: Unclosed 'tribe' block."); return currentIndex; }
-                return tribeBlockEndIndex;
+            function parseBlock(lines, startIndex) {
+                const blockLines = [];
+                let braceCount = 1;
+                let endIndex = -1;
+                for (let j = startIndex + 1; j < lines.length; j++) {
+                    const line = lines[j].trim();
+                    if (line.includes('{')) braceCount++;
+                    if (line.includes('}')) braceCount--;
+                    if (braceCount === 0) {
+                        endIndex = j;
+                        break;
+                    }
+                    blockLines.push(line);
+                }
+                return { blockLines, endIndex };
             }
 
-            let matchCall = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*)\)$/);
-            if (matchCall && matchCall[1] === 'greet') {
-                simulatePrint(`Hello, ${evaluateExpression(matchCall[2].trim())} from the tribe!`);
-                return null;
+            async function processLine(line, lines, currentIndex, scope = variables) {
+                line = line.trim();
+                if (!line || line.startsWith('#')) return currentIndex;
+
+                let match;
+                if (match = line.match(/^ape\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.*)$/)) {
+                    const varName = match[1];
+                    const expr = match[2];
+                    if (expr.trim() === 'ask()') {
+                        scope[varName] = await simulateAsk();
+                    } else {
+                        scope[varName] = evaluateExpression(expr, scope);
+                    }
+                } else if (match = line.match(/^tree\s+(.*)$/)) {
+                    simulatePrint(evaluateExpression(match[1], scope));
+                } else if (match = line.match(/^if\s*\((.*)\)\s*\{$/) || (match = line.match(/^if\s+(.*)\s*\{$/))) {
+                    const condition = evaluateExpression(match[1].replace(/^\(|\)$/g, ''), scope);
+                    const { blockLines, endIndex } = parseBlock(lines, currentIndex);
+                    if (condition) {
+                        for (const blockLine of blockLines) await processLine(blockLine, [], 0, scope);
+                    }
+                    return endIndex;
+                } else if (match = line.match(/^swing\s+([a-zA-Z0-9_.]+)\s*\{$/)) {
+                    const loopCount = evaluateExpression(match[1], scope);
+                    const { blockLines, endIndex } = parseBlock(lines, currentIndex);
+                    for (let i = 0; i < loopCount; i++) {
+                        for (const blockLine of blockLines) await processLine(blockLine, [], 0, scope);
+                    }
+                    return endIndex;
+                } else if (match = line.match(/^tribe\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*)\)\s*\{$/)) {
+                    const name = match[1];
+                    const params = match[2] ? match[2].split(',').map(p => p.trim()) : [];
+                    const { blockLines, endIndex } = parseBlock(lines, currentIndex);
+                    functions[name] = { params, body: blockLines };
+                    return endIndex;
+                } else if (line.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\(.*\)$/)) {
+                     evaluateExpression(line, scope);
+                }
+                return currentIndex;
             }
 
-            if (line.startsWith('give') || line === '}' || line === '{') return null;
-            
-            if (currentIndex === originalIndex) { // Only print error if it's a top-level line not handled
-                simulatePrint(`ERROR: Unrecognized statement: "${line}"`);
+            async function runApelangCode() {
+                outputBuffer = [];
+                variables = {};
+                functions = {};
+                const code = codeInput.value;
+                const lines = code.split('\n');
+
+                compilationStatus.textContent = "Compilation successful. 🦍🍌";
+                compilationStatus.classList.add('success');
+                compilationStatus.classList.remove('error');
+
+                for (let i = 0; i < lines.length; i++) {
+                    if(lines[i]) {
+                        i = await processLine(lines[i], lines, i);
+                    }
+                }
+
+                outputArea.textContent = `${initialOutputText}\n\n${outputBuffer.join('\n')}`;
+                outputArea.scrollTop = outputArea.scrollHeight;
             }
 
-            return null;
-        }
-        
-        document.addEventListener('DOMContentLoaded', initializePlayground);
-        runCodeBtn.addEventListener('click', runApelangCode);
-        clearOutputBtn.addEventListener('click', () => {
             initializePlayground();
-            outputBuffer = [];
-            variables = {};
+            runCodeBtn.addEventListener('click', runApelangCode);
+            clearOutputBtn.addEventListener('click', () => {
+                initializePlayground();
+                outputBuffer = [];
+                variables = {};
+            });
         });
     </script>
 </body>
