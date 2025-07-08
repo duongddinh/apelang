@@ -403,6 +403,10 @@ Each speaks to a different era in evolutionary coding. Choose based on your brai
 
 ##  Known Bugs (a.k.a. “Unpredictable Ape Behavior”)
 
+Disclaimer: This project is an educational tool and a work-in-progress. It contains known security vulnerabilities and is NOT suitable for running untrusted code or for any form of production use.
+> The primary security weakness in Apeslang stems from the Virtual Machine (VM) completely trusting the bytecode it is instructed to execute. The VM performs no verification or bounds-checking on the bytecode, which allows a specially crafted .apb file to compromise the interpreter's integrity, leading to crashes, information disclosure, or potentially arbitrary code execution.
+
+
 * Sometimes the compiler throws a banana peel at you. Try again.
 * The VM might go on a spontaneous swinging spree. It's not a bug, it's enrichment.
 * Error messages are in “Ape-speak” and may require interpretation.
