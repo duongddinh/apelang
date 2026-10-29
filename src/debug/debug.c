@@ -131,6 +131,22 @@ int disassembleInstruction(uint8_t* bytecode, int offset) {
         case OP_TUMBLE_END:     return simpleInstruction("OP_TUMBLE_END    ; the tumble is over, safe now", offset);
         case OP_SUMMON:         return simpleInstruction("OP_SUMMON        ; summon another ape spirit (module)", offset);
         case OP_LOOP:           return jumpInstruction("OP_LOOP          ; swing back on the vine", -1, bytecode, offset);
+        case OP_SLICE: return simpleInstruction("OP_SLICE", offset);
+        case OP_GRAFT: return simpleInstruction("OP_GRAFT", offset);
+        case OP_SCAN: return simpleInstruction("OP_SCAN", offset);
+        case OP_SHED: return simpleInstruction("OP_SHED", offset);
+        case OP_STRLEN: return simpleInstruction("OP_STRLEN", offset);
+        case OP_FORAGE: return simpleInstruction("OP_FORAGE", offset);
+        case OP_INSCRIBE: return simpleInstruction("OP_INSCRIBE", offset);
+        case OP_ASK_TEXT: return simpleInstruction("OP_ASK_TEXT", offset);
+        case OP_NUMBER: return simpleInstruction("OP_NUMBER", offset);
+        case OP_FILES: return simpleInstruction("OP_FILES", offset);
+        case OP_PAINT: return simpleInstruction("OP_PAINT", offset);
+        case OP_DRAWTEXT: return simpleInstruction("OP_DRAWTEXT", offset);
+        case OP_KEY: return simpleInstruction("OP_KEY", offset);
+        case OP_WAIT: return simpleInstruction("OP_WAIT", offset);
+        case OP_RANDOM: return simpleInstruction("OP_RANDOM", offset);
+        case OP_ERASE: return simpleInstruction("OP_ERASE", offset);
         default:
             printf("Unknown opcode %d\n", instruction);
             return offset + 1;

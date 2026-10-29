@@ -4,10 +4,14 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#ifdef APE_FREESTANDING
+#include "ape_platform.h"
+#else
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#endif
 
 
 typedef enum {
@@ -64,6 +68,15 @@ typedef enum {
     OP_SCAN,
     OP_SHED,
     OP_STRLEN,
+    OP_ASK_TEXT,
+    OP_NUMBER,
+    OP_FILES,
+    OP_ERASE,
+    OP_PAINT,
+    OP_DRAWTEXT,
+    OP_KEY,
+    OP_WAIT,
+    OP_RANDOM,
 
 
 } OpCode;
@@ -123,11 +136,13 @@ struct ObjFunction {
     int arity;
     uint8_t* code;
     struct ObjFunction* owner;
+    size_t code_size;
     uint32_t code_offset;     
 
     ObjString* name;
 
     bool isModule;
+    char* path; // Owned by the bytecode owner; used for relative imports.
 };
 
 struct ObjBunch { // Arrays/Lists

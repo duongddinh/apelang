@@ -1,4 +1,10 @@
 *.o
+*.d
 *.apb
 apeslang
 example/apeslang
+__pycache__/
+.direnv/
+result
+apeslang-sanitize
+*.dSYM/

@@ -1,292 +1,100 @@
 #include "common.h"
-#include "./compiler/compiler.h"
-#include "./vm/vm.h"
-#include "./debug/debug.h"
-#include "./lexer/lexer.h" 
+#include "compiler/compiler.h"
+#include "vm/vm.h"
+#include "debug/debug.h"
+#include "lexer/lexer.h"
 
-static char* processedFiles[1024];
-static int processedCount = 0;
-static char* readFile(const char* path);
-char** findDependencies(const char* source, int* count);
-void compileWithDependencies(const char* ape_path);
-static void printVmStats(VM* vm);
+static char* paths[1024];
+static int states[1024], pathCount;
 
-bool hasBeenProcessed(const char* path) {
-    for (int i = 0; i < processedCount; i++) {
-        if (strcmp(processedFiles[i], path) == 0) return true;
-    }
-    return false;
+static char* readFile(const char* path, size_t* size) {
+    FILE* f = fopen(path, "rb");
+    if (!f || fseek(f, 0, SEEK_END)) { fprintf(stderr, "Cannot read %s\n", path); exit(74); }
+    long n = ftell(f);
+    if (n < 0 || n > 1024 * 1024) { fprintf(stderr, "File too large: %s\n", path); exit(74); }
+    rewind(f);
+    char* data = malloc((size_t)n + 1);
+    if (!data || fread(data, 1, n, f) != (size_t)n) exit(74);
+    fclose(f); data[n] = 0; *size = n; return data;
 }
 
-void markAsProcessed(const char* path) {
-    if (processedCount < 1024) {
-        processedFiles[processedCount++] = strdup(path);
-    }
-}
-
-// The main recursive compilation driver.
-void compileWithDependencies(const char* ape_path) {
-    // 1. Avoid re-compiling or circular dependencies.
-    if (hasBeenProcessed(ape_path)) {
+static void compileFile(const char* path) {
+    char* canonical = realpath(path, NULL);
+    if (!canonical) { fprintf(stderr, "Cannot resolve source: %s\n", path); exit(74); }
+    int slot;
+    for (slot = 0; slot < pathCount; slot++) if (!strcmp(paths[slot], canonical)) break;
+    if (slot < pathCount) {
+        free(canonical);
+        if (states[slot] == 1) { fprintf(stderr, "Circular summon dependency: %s\n", path); exit(65); }
         return;
     }
-
-    printf("-> Processing: %s\n", ape_path);
-
-    char* source = readFile(ape_path); // Assumes readFile is accessible
-    if (source == NULL) {
-        fprintf(stderr, "Error: Could not open source file '%s'.\n", ape_path);
-        exit(71);
+    if (pathCount == 1024) { fprintf(stderr, "Too many dependencies.\n"); exit(65); }
+    paths[pathCount++] = canonical; states[slot] = 1;
+    size_t len = strlen(canonical), size;
+    if (len < 4 || strcmp(canonical + len - 4, ".ape")) { fprintf(stderr, "Expected .ape source.\n"); exit(64); }
+    char* source = readFile(canonical, &size);
+    Lexer lexer; initLexer(&lexer, source);
+    for (;;) {
+        Token token = scanToken(&lexer);
+        if (token.type == TOKEN_EOF || token.type == TOKEN_ERROR) break;
+        if (token.type == TOKEN_SUMMON) {
+            Token next = scanToken(&lexer);
+            if (next.type == TOKEN_STRING) {
+                size_t prefix = next.start[1] == '/' ? 0 : (size_t)(strrchr(canonical, '/') - canonical + 1);
+                char* dep = malloc(prefix + next.length);
+                if (!dep) exit(74);
+                memcpy(dep, canonical, prefix);
+                memcpy(dep + prefix, next.start + 1, next.length - 2);
+                dep[prefix + next.length - 2] = 0;
+                compileFile(dep); free(dep);
+            }
+        }
     }
-    
-    // 2. Find and recursively compile all dependencies first.
-    int dep_count = 0;
-    char** deps = findDependencies(source, &dep_count);
-    free(source); // Free the source after scanning
-    
-    for (int i = 0; i < dep_count; i++) {
-        compileWithDependencies(deps[i]);
-        free(deps[i]); // Free the path string
-    }
-    free(deps);
-
-    // 3. After dependencies are met, compile the current file.
-    printf("=> Compiling: %s\n", ape_path);
-    char path_apb[1024];
-    strncpy(path_apb, ape_path, sizeof(path_apb) - 1);
-    // Replace .ape with .apb
-    char* dot = strrchr(path_apb, '.');
-    if (dot && strcmp(dot, ".ape") == 0) {
-        strcpy(dot, ".apb");
-    } else {
-        strcat(path_apb, ".apb");
-    }
-
-    source = readFile(ape_path); // Read the source again for compilation
-    FILE* outFile = fopen(path_apb, "wb");
-    if (outFile == NULL) {
-        fprintf(stderr, "Error: Unable to open output file '%s'.\n", path_apb);
-        exit(71);
-    }
-
-    if (compile(source, outFile, false)) { // This is your existing compile function
-        printf("   Success: %s -> %s\n", ape_path, path_apb);
-    } else {
-        fprintf(stderr, "   Failure: Could not compile %s.\n", ape_path);
-        exit(65);
-    }
-
-    fclose(outFile);
+    char* bytecode = NULL; size_t bytes = 0;
+    FILE* memory = open_memstream(&bytecode, &bytes);
+    if (!memory) exit(74);
+    bool ok = compile(source, memory, false);
+    int closed = fclose(memory);
     free(source);
-    
-    // 4. Mark this file as done.
-    markAsProcessed(ape_path);
-}
-char** findDependencies(const char* source, int* count) {
-    *count = 0;
-    Lexer lexer;
-    
-    // First pass: count the dependencies to know how much memory to allocate.
-    initLexer(&lexer, source);
-    for (;;) {
-        Token token = scanToken(&lexer);
-        // Look for the pattern: summon "some/path.ape"
-        if (token.type == TOKEN_SUMMON) {
-            Token nextToken = scanToken(&lexer);
-            if (nextToken.type == TOKEN_STRING) {
-                (*count)++;
-            }
-        }
-        if (token.type == TOKEN_EOF) break;
-    }
-
-    if (*count == 0) return NULL;
-
-    char** deps = malloc(sizeof(char*) * (*count));
-    int deps_idx = 0;
-
-    // Second pass: extract the dependency paths into the list.
-    initLexer(&lexer, source);
-    for (;;) {
-        Token token = scanToken(&lexer);
-        if (token.type == TOKEN_SUMMON) {
-            Token pathToken = scanToken(&lexer);
-            if (pathToken.type == TOKEN_STRING) {
-                // Extract the path from the string literal 
-                int len = pathToken.length - 2;
-                char* path = malloc(len + 1);
-                strncpy(path, pathToken.start + 1, len);
-                path[len] = '\0';
-                deps[deps_idx++] = path;
-            }
-        }
-        if (token.type == TOKEN_EOF) break;
-    }
-    return deps;
+    if (!ok || closed) { free(bytecode); exit(65); }
+    if (!validateBytecode((uint8_t*)bytecode, bytes)) { fprintf(stderr, "Compiler produced invalid bytecode.\n"); exit(65); }
+    char* output = strdup(canonical);
+    memcpy(output + len - 4, ".apb", 5);
+    FILE* f = fopen(output, "wb");
+    if (!f || fwrite(bytecode, 1, bytes, f) != bytes || fclose(f)) exit(74);
+    printf("Compiled: %s\n", output);
+    free(output); free(bytecode); states[slot] = 2;
 }
 
-
-
-static char* readFile(const char* path) {
-  FILE* file = fopen(path, "rb");
-  if (file == NULL) {
-    fprintf(stderr, "Could not open file \"%s\".\n", path);
-    exit(74);
-  }
-  fseek(file, 0L, SEEK_END);
-  size_t fileSize = ftell(file);
-  rewind(file);
-  char* buffer = (char*)malloc(fileSize + 1);
-  if (buffer == NULL) {
-    fprintf(stderr, "Not enough memory to read \"%s\".\n", path);
-    exit(74);
-  }
-  size_t bytesRead = fread(buffer, sizeof(char), fileSize, file);
-  buffer[bytesRead] = '\0';
-  fclose(file);
-  return buffer;
-}
-
-static void printVmStats(VM* vm) {
-    printf("\n-- Apelang Stats --\n");
-    printf("Memory: %zu bytes\n", vm->bytesAllocated);
-    printf("Stack Depth: %d\n", vm->maxFrameCount);
-    printf("Allocated Objects: %ld\n", vm->objectsAllocated);
-    printf("GC Cycles: %d\n", vm->gcCycles);
-    printf("-------------------\n");
-}
-
-static void runRepl() {
-    VM vm;
-    initVM(&vm); // Initialize the VM once for the whole session
-    char line[1024];
-    printf("Apeslang Interactive REPL. Type 'exit' to quit.\n");
-    for (;;) {
-        printf(">> ");
-        if (!fgets(line, sizeof(line), stdin)) {
-            printf("\n");
-            break;
-        }
-        if (strcmp(line, "exit\n") == 0) {
-            break;
-        }
-
-        // Interpret the line of code within the persistent VM
-        interpret(&vm, line);
-    }
-    printVmStats(&vm);
-    freeVM(&vm); // Free the VM when the session ends
-}
-
-static void compileCommand(const char* sourcePath) {
-  char outputPath[256];
-  strncpy(outputPath, sourcePath, sizeof(outputPath) - 1);
-  char* dot = strrchr(outputPath, '.');
-  if (dot == NULL || strcmp(dot, ".ape") != 0) {
-    fprintf(stderr, "Error: Source file for compilation must have a .ape extension.\n");
-    exit(64);
-  }
-  strcpy(dot, ".apb");
-
-  printf("Compiling %s to %s...\n", sourcePath, outputPath);
-  char* source = readFile(sourcePath);
-  
-  FILE* outFile = fopen(outputPath, "wb");
-  if (outFile == NULL) {
-      fprintf(stderr, "Could not open output file \"%s\".\n", outputPath);
-      exit(74);
-  }
-
-  // Pass false for isRepl when compiling a file
-  int success = compile(source, outFile, false);
-  free(source);
-  fclose(outFile);
-
-  if (success) {
-    printf("Compilation successful. 🦍🍌\n");
-  } else {
-    fprintf(stderr, "Compilation failed.\n");
-    exit(65);
-  }
-}
-
-static void runCommand(const char* bytecodePath) {
-  if (strrchr(bytecodePath, '.') == NULL || strcmp(strrchr(bytecodePath, '.'), ".apb") != 0) {
-    fprintf(stderr, "Error: File for execution must have a .apb extension.\n");
-    exit(64);
-  }
-
-  VM vm;
-  initVM(&vm);
-
-  VMResult result = runBytecode(&vm, bytecodePath);
-
-  printVmStats(&vm);
-  freeVM(&vm);
-
-  if (result != VM_RESULT_OK) {
-    fprintf(stderr, "\nExecution failed.\n");
-    exit(70);
-  }
-}
-
-static void disassembleCommand(const char* path) {
-    if (strrchr(path, '.') == NULL || strcmp(strrchr(path, '.'), ".apb") != 0) {
-        fprintf(stderr, "Error: File for disassembly must have a .apb extension.\n");
-        exit(64);
-    }
-
-    FILE* file = fopen(path, "rb");
-    if (!file) {
-        fprintf(stderr, "Could not open file \"%s\".\n", path);
-        exit(74);
-    }
-
-    fseek(file, 0L, SEEK_END);
-    long fileSize = ftell(file);
-    rewind(file);
-
-    uint8_t* bytecode = (uint8_t*)malloc(fileSize);
-    if(bytecode == NULL) {
-        fprintf(stderr, "Not enough memory to read \"%s\".\n", path);
-        exit(74);
-    }
-
-    fread(bytecode, sizeof(uint8_t), fileSize, file);
-    fclose(file);
-
-    disassembleBytecode(path, bytecode, fileSize);
-    free(bytecode);
+static void stats(VM* vm) {
+    printf("\n-- Apelang Stats --\nMemory: %zu bytes\nStack Depth: %d\nGC Cycles: %d\n", vm->bytesAllocated, vm->maxFrameCount, vm->gcCycles);
 }
 
 int main(int argc, const char* argv[]) {
-  if (argc < 2) {
-    fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "  apeslang compile <file.ape>\n");
-    fprintf(stderr, "  apeslang run <file.apb>\n");
-    fprintf(stderr, "  apeslang repl\n");
-    fprintf(stderr, "  apeslang disassemble <file.apb>\n");
-    return 64;
-  }
-
-  const char* command = argv[1];
-
-   if (argc == 3 && strcmp(argv[1], "compile") == 0) {
-        compileWithDependencies(argv[2]);
-        // Clean up memory from the processed files list
-        for (int i = 0; i < processedCount; i++) {
-            free(processedFiles[i]);
+    if (argc == 3 && !strcmp(argv[1], "compile")) {
+        compileFile(argv[2]);
+        for (int i = 0; i < pathCount; i++) free(paths[i]);
+        return 0;
+    }
+    if (argc == 3 && !strcmp(argv[1], "disassemble")) {
+        size_t size; uint8_t* bytes = (uint8_t*)readFile(argv[2], &size);
+        if (!validateBytecode(bytes, size)) { free(bytes); fprintf(stderr, "Invalid bytecode.\n"); return 65; }
+        disassembleBytecode(argv[2], bytes, (int)size); free(bytes); return 0;
+    }
+    if (argc == 3 && !strcmp(argv[1], "run")) {
+        VM vm; initVM(&vm);
+        VMResult result = runBytecode(&vm, argv[2]);
+        stats(&vm); freeVM(&vm); return result == VM_RESULT_OK ? 0 : 70;
+    }
+    if (argc == 2 && !strcmp(argv[1], "repl")) {
+        VM vm; initVM(&vm); char line[4096];
+        puts("Apelang REPL. Type 'exit' to quit.");
+        while (printf(">> "), fflush(stdout), fgets(line, sizeof(line), stdin)) {
+            if (!strcmp(line, "exit\n")) break;
+            interpret(&vm, line);
         }
-    } else if (strcmp(command, "run") == 0 && argc == 3) {
-    runCommand(argv[2]);
-  } else if (strcmp(command, "repl") == 0 && argc == 2) {
-    runRepl();
-  } else if (strcmp(command, "disassemble") == 0 && argc == 3) {
-    disassembleCommand(argv[2]);
-  } else {
-    fprintf(stderr, "Unknown command or incorrect number of arguments.\n");
+        stats(&vm); freeVM(&vm); return 0;
+    }
+    fprintf(stderr, "Usage: apeslang compile <file.ape> | run <file.apb> | disassemble <file.apb> | repl\n");
     return 64;
-  }
-
-  return 0;
 }

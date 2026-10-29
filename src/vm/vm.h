@@ -18,6 +18,8 @@ typedef enum {
 typedef struct {
     ObjFunction* function;
     uint8_t* ip;      
+    int loopDepth;
+    int handlerDepth;
     Value* slots;      // Points to the first stack slot this function can use
 } CallFrame;
 
@@ -29,6 +31,7 @@ typedef struct {
 
 typedef struct {
     uint8_t* catchIp;     // Instruction pointer of the catch block
+    int loopDepth;
     int frameCount;       // Which call frame this handler belongs to
     Value* stackTop;      // The stack pointer to restore to
 } TryHandler;
@@ -45,6 +48,11 @@ typedef struct {
     CallFrame frames[FRAMES_MAX];
     int frameCount;
     int maxFrameCount;
+    size_t instructionLimit; // Zero disables the execution budget.
+    size_t instructions;
+    Value lastError;
+    uint32_t randomState;
+    bool graphicsUsed;
 
     TryHandler tryHandlers[HANDLER_MAX];
     int tryHandlerCount;
@@ -66,6 +74,8 @@ typedef struct {
 void initVM(VM* vm);
 void freeVM(VM* vm);
 VMResult interpret(VM* vm, const char* source);
+VMResult executeSource(VM* vm, const char* source, bool isRepl);
+bool validateBytecode(const uint8_t* code, size_t size);
 VMResult runBytecode(VM* vm, const char* path);
 
 #endif
