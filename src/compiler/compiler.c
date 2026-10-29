@@ -1,6 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "compiler.h"
 #include "../lexer/lexer.h"
 
@@ -23,6 +20,7 @@ typedef struct {
   bool hadError;
   FILE* outFile;
   Compiler* compiler;
+  int expressionDepth, blockDepth, functionDepth;
   bool isRepl; // Flag to indicate if we are in REPL mode
 } Parser;
 
@@ -64,6 +62,7 @@ static void tumbleStatement(Parser* p);
 static void funDeclaration(Parser* p);
 static void varDeclaration(Parser* p);
 static void consume(Parser* p, TokenType type, const char* message);
+static void addLocal(Parser* p, Token name);
 static void beginScope(Parser* p);
 static void endScope(Parser* p);
 static void declareVariable(Parser* p);
@@ -101,14 +100,15 @@ static long emitJump(Parser* p, uint8_t instruction) {
   return ftell(p->outFile) - 2;
 }
 static void patchJump(Parser* p, long offset) {
-  long jump = ftell(p->outFile) - offset - 2;
+  long end = ftell(p->outFile);
+  long jump = end - offset - 2;
   if (jump > UINT16_MAX) {
     error(p, "Too much code to jump over.");
   }
   fseek(p->outFile, offset, SEEK_SET);
   emitByte(p, (jump >> 8) & 0xff);
   emitByte(p, jump & 0xff);
-  fseek(p->outFile, 0, SEEK_END);
+  fseek(p->outFile, end, SEEK_SET);
 }
 static void emitAddress(Parser* p, uint32_t address) {
   fwrite(&address, sizeof(uint32_t), 1, p->outFile);
@@ -147,7 +147,9 @@ static void bananaStatement(Parser* p) {
     consume(p, TOKEN_LBRACE, "Expect '{' after banana condition.");
     long exitJump = emitJump(p, OP_JUMP_IF_FALSE);
     emitByte(p, OP_POP);
+    beginScope(p);
     block(p);
+    endScope(p);
     emitLoop(p, loopStart);
     patchJump(p, exitJump);
     emitByte(p, OP_POP);
@@ -187,6 +189,7 @@ static void number(Parser* p, bool canAssign) {
 static void string(Parser* p, bool canAssign) {
   const char* str = p->previous.start + 1;
   int length = p->previous.length - 2;
+  if (length > UINT8_MAX) { error(p, "String literal exceeds 255 bytes."); return; }
   emitByte(p, OP_PUSH);
   emitByte(p, VAL_OBJ);
   emitByte(p, OBJ_STRING);
@@ -203,7 +206,14 @@ static void literal(Parser* p, bool canAssign) {
 }
 static void unary(Parser* p, bool canAssign) {
   TokenType operatorType = p->previous.type;
+  if (operatorType == TOKEN_MINUS) {
+    emitByte(p, OP_PUSH);
+    emitByte(p, VAL_NUMBER);
+    double zero = 0;
+    fwrite(&zero, sizeof(zero), 1, p->outFile);
+  }
   parsePrecedence(p, PREC_UNARY);
+  if (operatorType == TOKEN_MINUS) emitByte(p, OP_SUB);
   if (operatorType == TOKEN_BANG) emitByte(p, OP_NOT);
 }
 static void binary(Parser* p, bool canAssign) {
@@ -228,6 +238,22 @@ static void grouping(Parser* p, bool canAssign) {
   expression(p);
   consume(p, TOKEN_RPAREN, "Expect ')' after expression.");
 }
+static void platformOperation(Parser* p, bool canAssign) {
+  TokenType type=p->previous.type;
+  consume(p, TOKEN_LPAREN, "Expect '(' after built-in name.");
+  int arguments = type==TOKEN_PAINT ? 5 : type==TOKEN_DRAWTEXT ? 4 :
+                  (type==TOKEN_NUMBER || type==TOKEN_ERASE || type==TOKEN_WAIT || type==TOKEN_RANDOM) ? 1 : 0;
+  for (int i=0; i<arguments; i++) {
+    if (i) consume(p, TOKEN_COMMA, "Expect ',' between built-in arguments.");
+    expression(p);
+  }
+  consume(p, TOKEN_RPAREN, "Expect ')' after built-in arguments.");
+  emitByte(p, type==TOKEN_NUMBER ? OP_NUMBER : type==TOKEN_ERASE ? OP_ERASE :
+              type==TOKEN_FILES ? OP_FILES : type==TOKEN_PAINT ? OP_PAINT :
+              type==TOKEN_DRAWTEXT ? OP_DRAWTEXT : type==TOKEN_KEY ? OP_KEY :
+              type==TOKEN_WAIT ? OP_WAIT : type==TOKEN_RANDOM ? OP_RANDOM : OP_ASK_TEXT);
+}
+
 static void ask(Parser* p, bool canAssign) {
   consume(p, TOKEN_LPAREN, "Expect '(' after 'ask'.");
   consume(p, TOKEN_RPAREN, "Expect ')' after ask arguments.");
@@ -305,6 +331,15 @@ static void subscript(Parser* p, bool canAssign) {
 }
 
 ParseRule rules[] = {
+    [TOKEN_PAINT] = {platformOperation, NULL, PREC_NONE},
+    [TOKEN_DRAWTEXT] = {platformOperation, NULL, PREC_NONE},
+    [TOKEN_KEY] = {platformOperation, NULL, PREC_NONE},
+    [TOKEN_WAIT] = {platformOperation, NULL, PREC_NONE},
+    [TOKEN_RANDOM] = {platformOperation, NULL, PREC_NONE},
+    [TOKEN_ASK_TEXT] = {platformOperation, NULL, PREC_NONE},
+    [TOKEN_NUMBER] = {platformOperation, NULL, PREC_NONE},
+    [TOKEN_FILES] = {platformOperation, NULL, PREC_NONE},
+    [TOKEN_ERASE] = {platformOperation, NULL, PREC_NONE},
     [TOKEN_LPAREN]      = {grouping, call, PREC_CALL},
     [TOKEN_RPAREN]      = {NULL, NULL, PREC_NONE},
     [TOKEN_LBRACE]      = {canopyLiteral, NULL, PREC_NONE},
@@ -338,7 +373,7 @@ ParseRule rules[] = {
     [TOKEN_TRUE]        = {literal, NULL, PREC_NONE},
     [TOKEN_NIL]         = {literal, NULL, PREC_NONE},
     [TOKEN_PLUS]        = {NULL, binary, PREC_TERM},
-    [TOKEN_MINUS]       = {NULL, binary, PREC_TERM},
+    [TOKEN_MINUS]       = {unary, binary, PREC_TERM},
     [TOKEN_MUL]         = {NULL, binary, PREC_FACTOR},
     [TOKEN_DIV]         = {NULL, binary, PREC_FACTOR},
     [TOKEN_SUMMON]      = {NULL, NULL, PREC_NONE},
@@ -354,10 +389,12 @@ ParseRule rules[] = {
 
 static ParseRule* getRule(TokenType type) { return &rules[type]; }
 static void parsePrecedence(Parser* p, Precedence precedence) {
+  if (++p->expressionDepth > 64) { error(p, "Expression nesting exceeds 64."); p->expressionDepth--; return; }
   advance(p);
   ParseFn prefixRule = getRule(p->previous.type)->prefix;
   if (prefixRule == NULL) {
     error(p, "Expect expression.");
+    p->expressionDepth--;
     return;
   }
   bool canAssign = precedence <= PREC_ASSIGNMENT;
@@ -367,13 +404,16 @@ static void parsePrecedence(Parser* p, Precedence precedence) {
     ParseFn infixRule = getRule(p->previous.type)->infix;
     infixRule(p, canAssign);
   }
+  p->expressionDepth--;
 }
 static void expression(Parser* p) { parsePrecedence(p, PREC_ASSIGNMENT); }
 static void block(Parser* p) {
-  while (!check(p, TOKEN_RBRACE) && !check(p, TOKEN_EOF)) {
+  if (++p->blockDepth > 32) { error(p, "Block nesting exceeds 32."); p->blockDepth--; return; }
+  while (!p->hadError && !check(p, TOKEN_RBRACE) && !check(p, TOKEN_EOF)) {
     declaration(p);
   }
   consume(p, TOKEN_RBRACE, "Expect '}' after block.");
+  p->blockDepth--;
 }
 static void printStatement(Parser* p) {
   expression(p);
@@ -425,26 +465,48 @@ static void ifStatement(Parser* p) {
   consume(p, TOKEN_LBRACE, "Expect '{' after condition.");
   long thenJump = emitJump(p, OP_JUMP_IF_FALSE);
   emitByte(p, OP_POP);
+  beginScope(p);
   block(p);
+  endScope(p);
   long elseJump = emitJump(p, OP_JUMP);
   patchJump(p, thenJump);
   emitByte(p, OP_POP);
   if (match(p, TOKEN_ELSE)) {
     consume(p, TOKEN_LBRACE, "Expect '{' after 'else'.");
+    beginScope(p);
     block(p);
+    endScope(p);
   }
   patchJump(p, elseJump);
 }
 
 static void swingStatement(Parser* p) {
+  beginScope(p);
+  Token hidden = {TOKEN_ID, "", 0};
+  addLocal(p, hidden);
+  int slot = p->compiler->localCount - 1;
   expression(p);
-  emitByte(p, OP_LOOP_START);
-  uint32_t loopStart = ftell(p->outFile);
+  long loopStart = ftell(p->outFile);
+  emitBytes(p, OP_GET_LOCAL, (uint8_t)slot);
+  emitByte(p, OP_PUSH); emitByte(p, VAL_NUMBER);
+  double zero = 0; fwrite(&zero, sizeof(zero), 1, p->outFile);
+  emitByte(p, OP_GREATER);
+  long exitJump = emitJump(p, OP_JUMP_IF_FALSE);
+  emitByte(p, OP_POP);
   consume(p, TOKEN_LBRACE, "Expect '{' before swing block.");
-  block(p);
-  emitByte(p, OP_JUMP_BACK);
-  emitAddress(p, loopStart);
+  beginScope(p); block(p); endScope(p);
+  emitBytes(p, OP_GET_LOCAL, (uint8_t)slot);
+  emitByte(p, OP_PUSH); emitByte(p, VAL_NUMBER);
+  double one = 1; fwrite(&one, sizeof(one), 1, p->outFile);
+  emitByte(p, OP_SUB);
+  emitBytes(p, OP_SET_LOCAL, (uint8_t)slot);
+  emitByte(p, OP_POP);
+  emitLoop(p, loopStart);
+  patchJump(p, exitJump);
+  emitByte(p, OP_POP);
+  endScope(p);
 }
+
 static void giveStatement(Parser* p) {
   if (check(p, TOKEN_RBRACE)) {
     emitReturn(p);
@@ -457,7 +519,9 @@ static void giveStatement(Parser* p) {
 static void tumbleStatement(Parser* p) {
     consume(p, TOKEN_LBRACE, "Expect '{' after 'tumble'.");
     long catchJump = emitJump(p, OP_TUMBLE_SETUP);
+    beginScope(p);
     block(p);
+    endScope(p);
     emitByte(p, OP_TUMBLE_END);
     long exitJump = emitJump(p, OP_JUMP);
     patchJump(p, catchJump);
@@ -564,6 +628,7 @@ static void declareVariable(Parser* p) {
 static void varDeclaration(Parser* p) {
   consume(p, TOKEN_ID, "Expect variable name.");
   Token name = p->previous;
+  if (name.length > UINT8_MAX) { error(p, "Identifier exceeds 255 bytes."); return; }
   declareVariable(p);
   if (match(p, TOKEN_EQUAL)) {
     expression(p);
@@ -580,11 +645,14 @@ static void varDeclaration(Parser* p) {
 }
 
 static void funDeclaration(Parser* p) {
+  if (p->functionDepth >= 6) { error(p, "Function nesting exceeds 6."); return; }
   consume(p, TOKEN_ID, "Expect function name.");
   Token name = p->previous;
+  if (name.length > UINT8_MAX) { error(p, "Identifier exceeds 255 bytes."); return; }
   declareVariable(p);
   long bodyJump = emitJump(p, OP_JUMP);
   long bodyStart = ftell(p->outFile);
+  p->functionDepth++;
   Compiler compiler;
   initCompiler(&compiler, p->compiler);
   p->compiler = &compiler;
@@ -604,6 +672,7 @@ static void funDeclaration(Parser* p) {
   block(p);
   emitReturn(p);
   p->compiler = p->compiler->enclosing;
+  p->functionDepth--;
   patchJump(p, bodyJump);
   emitByte(p, OP_PUSH);
   emitByte(p, VAL_OBJ);
@@ -618,11 +687,13 @@ static void funDeclaration(Parser* p) {
     uint8_t len = (uint8_t)name.length;
     emitByte(p, len);
     fwrite(name.start, sizeof(char), len, p->outFile);
+    emitByte(p, OP_POP);
   }
 }
 
 static void variable(Parser* p, bool canAssign) {
   Token name = p->previous;
+  if (name.length > UINT8_MAX) { error(p, "Identifier exceeds 255 bytes."); return; }
   int arg = resolveLocal(p->compiler, &name);
   if (arg != -1) {
     if (canAssign && match(p, TOKEN_EQUAL)) {
@@ -656,7 +727,7 @@ static void declaration(Parser* p) {
 }
 
 int compile(const char* source, FILE* outFile, bool isRepl) {
-  Parser p;
+  Parser p = {0};
   p.hadError = false;
   initLexer(&p.lexer, source);
   p.outFile = outFile;

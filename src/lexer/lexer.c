@@ -68,6 +68,15 @@ static TokenType checkKeyword(Lexer* lexer, int start, int length,
 }
 
 static TokenType identifierType(Lexer* lexer) {
+  static const struct { const char* word; TokenType type; } builtins[] = {
+    {"asktext", TOKEN_ASK_TEXT}, {"number", TOKEN_NUMBER},
+    {"files", TOKEN_FILES}, {"erase", TOKEN_ERASE},
+    {"paint", TOKEN_PAINT}, {"drawtext", TOKEN_DRAWTEXT},
+    {"key", TOKEN_KEY}, {"wait", TOKEN_WAIT}, {"random", TOKEN_RANDOM}
+  };
+  for (size_t i=0; i<sizeof(builtins)/sizeof(builtins[0]); i++)
+    if ((size_t)(lexer->current-lexer->start)==strlen(builtins[i].word) &&
+        !memcmp(lexer->start,builtins[i].word,strlen(builtins[i].word))) return builtins[i].type;
   switch (lexer->start[0]) {
     case 'a':
       if (lexer->current - lexer->start > 1) {
@@ -147,8 +156,8 @@ static TokenType identifierType(Lexer* lexer) {
       return checkKeyword(lexer, 1, 2, "il", TOKEN_NIL);
     case 'o':
       if (lexer->current - lexer->start > 2) {
-        if (lexer->start[1] == 'o' && lexer->start[2] == 'h') return TOKEN_PLUS;
-        if (lexer->start[1] == 'o' && lexer->start[2] == 'k') return TOKEN_DIV;
+        if (lexer->start[1] == 'o' && lexer->start[2] == 'h') return checkKeyword(lexer, 3, 0, "", TOKEN_PLUS);
+        if (lexer->start[1] == 'o' && lexer->start[2] == 'k') return checkKeyword(lexer, 3, 0, "", TOKEN_DIV);
       }
       break;
     case 's':
@@ -232,6 +241,8 @@ Token scanToken(Lexer* lexer) {
   if (isdigit(c)) return number(lexer);
 
   switch (c) {
+    case '-':
+      return makeToken(lexer, TOKEN_MINUS);
     case '(':
       return makeToken(lexer, TOKEN_LPAREN);
     case ')':

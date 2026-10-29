@@ -1,8 +1,7 @@
-#include <ctype.h>
 #include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#ifndef APE_FREESTANDING
+#include <dirent.h>
+#endif
 
 #include "../compiler/compiler.h"
 #include "../debug/debug.h"
@@ -17,7 +16,7 @@ static bool callValue(VM* vm, Value callee, int argCount);
 static bool valuesEqual(Value a, Value b);
 static void printValue(Value value);
 static uint32_t hashString(const char* key, int length);
-static bool canopySet(ObjCanopy* canopy, Value key, Value value);
+static bool canopySet(VM* vm, ObjCanopy* canopy, Value key, Value value);
 static int findVariable(VM* vm, const char* name, int len);
 static bool isFalsey(Value value);
 
@@ -51,11 +50,7 @@ static void* reallocate(VM* vm, void* pointer, size_t oldSize, size_t newSize) {
       vm->objectsAllocated++;
   }
 
-  if (newSize > oldSize) {
-    if (vm->bytesAllocated > vm->nextGC) {
-      collectGarbage(vm);
-    }
-  }
+
   if (newSize == 0) {
     free(pointer);
     return NULL;
@@ -98,6 +93,31 @@ static bool writeTextFile(const char* path, const char* content) {
 }
 
 
+static char* listFiles(void) {
+#ifdef APE_FREESTANDING
+  return ape_list_files();
+#else
+  DIR* dir=opendir(".");
+  if (!dir) return NULL;
+  size_t used=0, capacity=256;
+  char* text=malloc(capacity);
+  if (!text) { closedir(dir); return NULL; }
+  struct dirent* entry;
+  while ((entry=readdir(dir))) {
+    if (!strcmp(entry->d_name,".") || !strcmp(entry->d_name,"..")) continue;
+    size_t n=strlen(entry->d_name);
+    if (used+n+2>capacity) {
+      capacity=(used+n+2)*2;
+      char* grown=realloc(text,capacity);
+      if (!grown) { free(text); closedir(dir); return NULL; }
+      text=grown;
+    }
+    memcpy(text+used,entry->d_name,n); used+=n; text[used++]='\n';
+  }
+  text[used]=0; closedir(dir); return text;
+#endif
+}
+
 static uint32_t hashString(const char* key, int length) {
   uint32_t hash = 2166136261u;
   for (int i = 0; i < length; i++) {
@@ -124,7 +144,22 @@ static CanopyEntry* findCanopyEntry(CanopyEntry* entries, int capacity,
   }
 }
 
-static bool canopySet(ObjCanopy* canopy, Value key, Value value) {
+static bool canopySet(VM* vm, ObjCanopy* canopy, Value key, Value value) {
+  if ((canopy->count + 1) * 4 > canopy->capacity * 3) {
+    int oldCapacity = canopy->capacity;
+    CanopyEntry* old = canopy->entries;
+    canopy->capacity *= 2;
+    canopy->entries = reallocate(vm, NULL, 0, sizeof(CanopyEntry) * canopy->capacity);
+    if (!canopy->entries) exit(1);
+    for (int i = 0; i < canopy->capacity; i++) {
+      canopy->entries[i].key = NIL_VAL;
+      canopy->entries[i].value = NIL_VAL;
+    }
+    canopy->count = 0;
+    for (int i = 0; i < oldCapacity; i++)
+      if (!IS_NIL(old[i].key)) canopySet(vm, canopy, old[i].key, old[i].value);
+    reallocate(vm, old, sizeof(CanopyEntry) * oldCapacity, 0);
+  }
   CanopyEntry* entry = findCanopyEntry(canopy->entries, canopy->capacity, key);
   bool isNewKey = IS_NIL(entry->key);
   if (isNewKey && IS_NIL(entry->value)) canopy->count++;
@@ -181,7 +216,9 @@ static uint8_t* readBytecodeFile(const char* path, size_t* out_fileSize) {
     if (file == NULL) return NULL;
 
     fseek(file, 0L, SEEK_END);
-    *out_fileSize = ftell(file);
+    long length = ftell(file);
+    if (length <= 0 || length > 1024 * 1024) { fclose(file); return NULL; }
+    *out_fileSize = (size_t)length;
     rewind(file);
 
     uint8_t* buffer = (uint8_t*)malloc(*out_fileSize);
@@ -222,6 +259,8 @@ static bool call(VM* vm, ObjFunction* function, int argCount) {
   ObjFunction* owner = function->owner ? function->owner : function;
   frame->ip = owner->code + function->code_offset;
 
+  frame->loopDepth = vm->loop_counter_top;
+  frame->handlerDepth = vm->tryHandlerCount;
   frame->slots = vm->stackTop - argCount - 1;
   return true;
 }
@@ -271,7 +310,7 @@ static void markRoots(VM* vm) {
   for (int i = 0; i < vm->variableCount; i++) markValue(vm->variables[i].value);
   for (int i = 0; i < vm->frameCount; i++)
     markObject((Obj*)vm->frames[i].function);
-  markValue(vm->stack[STACK_MAX - 1]);
+  markValue(vm->lastError);
 }
 
 static void freeObject(VM* vm, Obj* object) {
@@ -285,6 +324,7 @@ static void freeObject(VM* vm, Obj* object) {
       ObjFunction* function = (ObjFunction*)object;
       if (function->isModule) {
         free(function->code);
+        free(function->path);
       }
       reallocate(vm, object, sizeof(ObjFunction), 0);
       break;
@@ -329,26 +369,80 @@ void collectGarbage(VM* vm) {
   vm->gcCycles++;
   markRoots(vm);
   sweep(vm);
-  vm->nextGC = vm->bytesAllocated * GC_HEAP_GROW_FACTOR;
+  vm->nextGC = vm->bytesAllocated * GC_HEAP_GROW_FACTOR + 1024;
+}
+
+// Decode one instruction without reading past its bytecode buffer.
+static size_t instructionSize(const uint8_t* code, size_t size, size_t at) {
+  if (at >= size) return 0;
+  size_t n = 1;
+  switch (code[at]) {
+    case OP_PUSH:
+      if (size - at < 2) return 0;
+      if (code[at+1] == VAL_NUMBER) n = 2 + sizeof(double);
+      else if (code[at+1] == VAL_OBJ) {
+        if (size - at < 4) return 0;
+        if (code[at+2] == OBJ_STRING) n = 4 + code[at+3];
+        else if (code[at+2] == OBJ_FUNCTION) {
+          if (size - at < 9) return 0;
+          n = 9 + code[at+8];
+        } else return 0;
+      } else return 0;
+      break;
+    case OP_GET_GLOBAL: case OP_SET_GLOBAL:
+      if (size - at < 2) return 0;
+      n = 2 + code[at+1]; break;
+    case OP_GET_LOCAL: case OP_SET_LOCAL: case OP_CALL:
+    case OP_BUILD_BUNCH: case OP_BUILD_CANOPY: n = 2; break;
+    case OP_JUMP: case OP_JUMP_IF_FALSE: case OP_LOOP:
+    case OP_TUMBLE_SETUP: n = 3; break;
+    case OP_JUMP_BACK: n = 5; break;
+    default:
+      if (code[at] > OP_RANDOM) return 0;
+  }
+  return n <= size - at ? n : 0;
+}
+
+bool validateBytecode(const uint8_t* code, size_t size) {
+  if (!size || size > 1024 * 1024) return false;
+  uint8_t* starts = calloc(size, 1);
+  if (!starts) return false;
+  bool valid = true;
+  size_t at = 0;
+  while (at < size) {
+    size_t n = instructionSize(code, size, at);
+    if (!n) { valid = false; break; }
+    starts[at] = 1; at += n;
+  }
+  for (at = 0; valid && at < size;) {
+    size_t n = instructionSize(code, size, at), target = size;
+    bool jump = true;
+    switch (code[at]) {
+      case OP_JUMP: case OP_JUMP_IF_FALSE: case OP_TUMBLE_SETUP:
+        target = at + n + ((unsigned)code[at+1] << 8 | code[at+2]); break;
+      case OP_LOOP: {
+        size_t distance = (unsigned)code[at+1] << 8 | code[at+2];
+        if (distance <= at + n) target = at + n - distance;
+        break;
+      }
+      case OP_JUMP_BACK: { uint32_t t; memcpy(&t, code+at+1, 4); target=t; break; }
+      case OP_PUSH:
+        if (code[at+1] == VAL_OBJ && code[at+2] == OBJ_FUNCTION) {
+          uint32_t t; memcpy(&t, code+at+4, 4); target=t;
+        } else jump = false;
+        break;
+      default: jump = false;
+    }
+    if (jump && (target >= size || !starts[target])) valid = false;
+    at += n;
+  }
+  free(starts);
+  return valid;
 }
 
 VMResult run(VM* vm) {
   CallFrame* frame = &vm->frames[vm->frameCount - 1];
-#define RUNTIME_ERROR(...)                                           \
-  do {                                                               \
-    runtimeError(vm, __VA_ARGS__);                                   \
-    if (vm->tryHandlerCount > 0) {                                   \
-      TryHandler* handler = &vm->tryHandlers[--vm->tryHandlerCount]; \
-      vm->frameCount = handler->frameCount;                          \
-      vm->stackTop = handler->stackTop;                              \
-      *vm->stackTop++ = vm->stack[STACK_MAX - 1];                    \
-      frame = &vm->frames[vm->frameCount - 1];                       \
-      frame->ip = handler->catchIp;                                  \
-      continue;                                                      \
-    } else {                                                         \
-      return VM_RESULT_RUNTIME_ERROR;                                \
-    }                                                                \
-  } while (false)
+#define RUNTIME_ERROR(...) do { runtimeError(vm, __VA_ARGS__); goto handle_error; } while (false)
 #define BINARY_OP(valueType, op)                                        \
   do {                                                                  \
     if (!IS_NUMBER(vm->stackTop[-1]) || !IS_NUMBER(vm->stackTop[-2])) { \
@@ -360,7 +454,38 @@ VMResult run(VM* vm) {
   } while (false)
 
   for (;;) {
+    if (vm->bytesAllocated > vm->nextGC) collectGarbage(vm);
+    if (vm->stackTop < vm->stack || vm->stackTop >= vm->stack + STACK_MAX - 2) {
+      RUNTIME_ERROR("Value stack overflow.");
+    }
+    if (vm->instructionLimit && ++vm->instructions > vm->instructionLimit) {
+      // A budget violation cannot be caught and restarted indefinitely.
+      runtimeError(vm, "Instruction budget exceeded.");
+      return VM_RESULT_RUNTIME_ERROR;
+    }
+    ObjFunction* chunk = frame->function->owner ? frame->function->owner : frame->function;
+    size_t at = (size_t)(frame->ip - chunk->code);
+    if (!instructionSize(chunk->code, chunk->code_size, at)) RUNTIME_ERROR("Invalid or truncated bytecode.");
     uint8_t instruction = *frame->ip++;
+    int need = 0;
+    switch (instruction) {
+      case OP_WAIT: case OP_RANDOM:
+      case OP_NUMBER: case OP_ERASE:
+      case OP_POP: case OP_NOT: case OP_PRINT: case OP_SET_GLOBAL: case OP_SET_LOCAL:
+      case OP_JUMP_IF_FALSE: case OP_RETURN: case OP_FORAGE: case OP_SUMMON:
+      case OP_STRLEN: case OP_SHED: case OP_LOOP_START: need=1; break;
+      case OP_ADD: case OP_SUB: case OP_MUL: case OP_DIV: case OP_EQUAL:
+      case OP_GREATER: case OP_LESS: case OP_GET_SUBSCRIPT: case OP_INSCRIBE:
+      case OP_GRAFT: case OP_SCAN: need=2; break;
+      case OP_SLICE: case OP_SET_SUBSCRIPT: need=3; break;
+      case OP_PAINT: need=5; break;
+      case OP_DRAWTEXT: need=4; break;
+      case OP_CALL: need=frame->ip[0]+1; break;
+      case OP_BUILD_BUNCH: need=frame->ip[0]; break;
+      case OP_BUILD_CANOPY: need=frame->ip[0]*2; break;
+      default: break;
+    }
+    if (vm->stackTop - frame->slots < need) RUNTIME_ERROR("Value stack underflow.");
     switch (instruction) {
       case OP_STRLEN: {
         Value value = *--vm->stackTop;
@@ -397,12 +522,11 @@ VMResult run(VM* vm) {
             RUNTIME_ERROR("'slice' requires a string and two number indices.");
         }
         ObjString* string = AS_STRING(str_val);
-        int start = (int)AS_NUMBER(start_val);
-        int end = (int)AS_NUMBER(end_val);
-
-        if (start < 0 || end > string->length || start > end) {
+        double first = AS_NUMBER(start_val), last = AS_NUMBER(end_val);
+        if (!(first >= 0 && first <= last && last <= string->length))
             RUNTIME_ERROR("Slice indices out of bounds.");
-        }
+        int start = (int)first, end = (int)last;
+        if (first != start || last != end) RUNTIME_ERROR("Slice indices must be integers.");
         int slice_len = end - start;
         pushNewString(vm, string->chars + start, slice_len);
         break;
@@ -434,10 +558,9 @@ VMResult run(VM* vm) {
         char* start = string->chars;
         while (isspace((unsigned char)*start)) start++;
         
-        char* end = string->chars + string->length - 1;
-        while (end > start && isspace((unsigned char)*end)) end--;
-        
-        int shed_len = (end - start) + 1;
+        char* end = string->chars + string->length;
+        while (end > start && isspace((unsigned char)end[-1])) end--;
+        int shed_len = (int)(end - start);
         pushNewString(vm, start, shed_len);
         break;
       }
@@ -475,7 +598,8 @@ VMResult run(VM* vm) {
             memcpy(&codeAddr, frame->ip, sizeof(uint32_t));
             frame->ip += sizeof(uint32_t);
 
-            function->owner = frame->function;
+            function->path = NULL;
+            function->owner = frame->function->owner ? frame->function->owner : frame->function;
             function->code_offset = codeAddr;
             function->code = NULL; // This function doesn't own a code chunk.
 
@@ -574,6 +698,8 @@ VMResult run(VM* vm) {
         BINARY_OP(NUMBER_VAL, *);
         break;
       case OP_DIV:
+        if (IS_NUMBER(vm->stackTop[-1]) && AS_NUMBER(vm->stackTop[-1]) == 0)
+          RUNTIME_ERROR("Division by zero.");
         BINARY_OP(NUMBER_VAL, /);
         break;
       case OP_JUMP_IF_FALSE: {
@@ -594,9 +720,12 @@ VMResult run(VM* vm) {
         break;
       }
       case OP_LOOP_START:
+        if (vm->loop_counter_top == STACK_MAX || !IS_NUMBER(vm->stackTop[-1]))
+          RUNTIME_ERROR("Invalid swing count or excessive loop nesting.");
         vm->loop_counters[vm->loop_counter_top++] = AS_NUMBER(*--vm->stackTop);
         break;
       case OP_JUMP_BACK: {
+        if (!vm->loop_counter_top) RUNTIME_ERROR("Invalid loop state.");
         uint32_t target_offset;
         memcpy(&target_offset, frame->ip, sizeof(uint32_t));
         vm->loop_counters[vm->loop_counter_top - 1]--;
@@ -614,6 +743,85 @@ VMResult run(VM* vm) {
         printf("\n");
         break;
       }
+      case OP_RANDOM: {
+        Value limit=*--vm->stackTop;
+        if (!IS_NUMBER(limit) || !(AS_NUMBER(limit)>=1 && AS_NUMBER(limit)<=2147483647))
+          RUNTIME_ERROR("random() requires a positive integer limit.");
+        uint32_t n=(uint32_t)AS_NUMBER(limit);
+        if (n!=AS_NUMBER(limit)) RUNTIME_ERROR("random() requires an integer limit.");
+        uint32_t x=vm->randomState;
+        x^=x<<13; x^=x>>17; x^=x<<5; vm->randomState=x;
+        *vm->stackTop++=NUMBER_VAL(x%n); break;
+      }
+      case OP_PAINT: case OP_DRAWTEXT: {
+        int count=instruction==OP_PAINT ? 5 : 4;
+        Value* args=vm->stackTop-count;
+        for (int i=0;i<count;i++) {
+          if (instruction==OP_DRAWTEXT && i==2) continue;
+          if (!IS_NUMBER(args[i]) || !(AS_NUMBER(args[i])>=-32768 && AS_NUMBER(args[i])<=32767))
+            RUNTIME_ERROR("Drawing coordinates and colors must be bounded numbers.");
+        }
+        int color=(int)AS_NUMBER(args[count-1]);
+        if (color<0 || color>9) RUNTIME_ERROR("Drawing color must be 0 through 9.");
+#ifdef APE_FREESTANDING
+        if (instruction==OP_PAINT) {
+          ape_paint((int)AS_NUMBER(args[0]),(int)AS_NUMBER(args[1]),
+                    (int)AS_NUMBER(args[2]),(int)AS_NUMBER(args[3]),color);
+        } else {
+          char buffer[64]; const char* text;
+          if (IS_STRING(args[2])) text=AS_CSTRING(args[2]);
+          else if (IS_NUMBER(args[2])) { sprintf(buffer,"%g",AS_NUMBER(args[2])); text=buffer; }
+          else RUNTIME_ERROR("drawtext() requires text or a number.");
+          ape_drawtext((int)AS_NUMBER(args[0]),(int)AS_NUMBER(args[1]),text,color);
+        }
+        vm->graphicsUsed=true;
+        vm->stackTop-=count; *vm->stackTop++=NIL_VAL;
+#else
+        RUNTIME_ERROR("Drawing requires JordyOS.");
+#endif
+        break;
+      }
+      case OP_KEY: {
+#ifdef APE_FREESTANDING
+        const char* key=ape_key(); pushNewString(vm,key,(int)strlen(key));
+#else
+        RUNTIME_ERROR("Nonblocking keys require JordyOS.");
+#endif
+        break;
+      }
+      case OP_WAIT: {
+        Value ms=*--vm->stackTop;
+        if (!IS_NUMBER(ms) || !(AS_NUMBER(ms)>=1 && AS_NUMBER(ms)<=1000))
+          RUNTIME_ERROR("wait() requires 1 through 1000 milliseconds.");
+#ifdef APE_FREESTANDING
+        ape_wait((unsigned)AS_NUMBER(ms)); *vm->stackTop++=NIL_VAL;
+#else
+        RUNTIME_ERROR("Frame timing requires JordyOS.");
+#endif
+        break;
+      }
+      case OP_FILES: {
+        char* names=listFiles();
+        if (!names) RUNTIME_ERROR("Cannot list files.");
+        pushNewString(vm,names,(int)strlen(names)); free(names); break;
+      }
+      case OP_ERASE: {
+        Value path=*--vm->stackTop;
+        if (!IS_STRING(path)) RUNTIME_ERROR("erase() requires a string path.");
+        *vm->stackTop++=BOOL_VAL(remove(AS_CSTRING(path))==0); break;
+      }
+      case OP_NUMBER: {
+        Value input=*--vm->stackTop;
+        if (IS_NUMBER(input)) { *vm->stackTop++=input; break; }
+        if (!IS_STRING(input)) RUNTIME_ERROR("number() requires text or a number.");
+        const char* begin=AS_CSTRING(input); char* end;
+        double value=strtod(begin,&end);
+        if (end==begin) RUNTIME_ERROR("Invalid number.");
+        while (isspace((unsigned char)*end)) end++;
+        if (*end) RUNTIME_ERROR("Invalid number.");
+        *vm->stackTop++=NUMBER_VAL(value); break;
+      }
+      case OP_ASK_TEXT:
       case OP_ASK: {
         char line[1024];
         if (!fgets(line, sizeof(line), stdin)) {
@@ -623,6 +831,9 @@ VMResult run(VM* vm) {
 
         line[strcspn(line, "\r\n")] = 0;
 
+        if (instruction == OP_ASK_TEXT) {
+          pushNewString(vm,line,(int)strlen(line)); break;
+        }
         if (line[0] == '\0') {
           *vm->stackTop++ = NIL_VAL;
           break;
@@ -650,9 +861,11 @@ VMResult run(VM* vm) {
         break;
       }
       case OP_GET_LOCAL:
+        if (frame->slots + *frame->ip >= vm->stackTop) RUNTIME_ERROR("Invalid local slot.");
         *vm->stackTop++ = frame->slots[*frame->ip++];
         break;
       case OP_SET_LOCAL:
+        if (frame->slots + *frame->ip >= vm->stackTop) RUNTIME_ERROR("Invalid local slot.");
         frame->slots[*frame->ip++] = vm->stackTop[-1];
         break;
       case OP_GET_GLOBAL: {
@@ -676,6 +889,7 @@ VMResult run(VM* vm) {
         frame->ip += len;
         int index = findVariable(vm, name, len);
         if (index == -1) {
+          if (vm->variableCount == MEMORY_MAX) RUNTIME_ERROR("Too many global variables.");
           index = vm->variableCount++;
           vm->variables[index].name = (char*)malloc(len + 1);
           strcpy(vm->variables[index].name, name);
@@ -692,7 +906,7 @@ VMResult run(VM* vm) {
             (Value*)reallocate(vm, NULL, 0, sizeof(Value) * itemCount);
         bunch->count = itemCount;
         bunch->capacity = itemCount;
-        memcpy(bunch->values, vm->stackTop - itemCount,
+        if (itemCount) memcpy(bunch->values, vm->stackTop - itemCount,
                sizeof(Value) * itemCount);
         vm->stackTop -= itemCount;
         bunch->obj.isMarked = false;
@@ -718,7 +932,7 @@ VMResult run(VM* vm) {
           Value value = vm->stackTop[-1];
           Value key = vm->stackTop[-2];
           vm->stackTop -= 2;
-          canopySet(canopy, key, value);
+          canopySet(vm, canopy, key, value);
         }
         canopy->obj.isMarked = false;
         canopy->obj.next = vm->objects;
@@ -732,11 +946,13 @@ VMResult run(VM* vm) {
         if (IS_BUNCH(collection)) {
           ObjBunch* bunch = AS_BUNCH(collection);
           if (!IS_NUMBER(index)) RUNTIME_ERROR("Bunch index must be a number.");
-          int i = (int)AS_NUMBER(index);
-          if (i < 0 || i >= bunch->count)
-            *vm->stackTop++ = NIL_VAL;
-          else
+          double raw = AS_NUMBER(index);
+          if (!(raw >= 0 && raw < bunch->count)) *vm->stackTop++ = NIL_VAL;
+          else {
+            int i = (int)raw;
+            if (raw != i) RUNTIME_ERROR("Bunch index must be an integer.");
             *vm->stackTop++ = bunch->values[i];
+          }
         } else if (IS_CANOPY(collection)) {
           ObjCanopy* canopy = AS_CANOPY(collection);
           if (!IS_STRING(index)) RUNTIME_ERROR("Canopy keys must be strings.");
@@ -758,15 +974,16 @@ VMResult run(VM* vm) {
         if (IS_BUNCH(collection)) {
           ObjBunch* bunch = AS_BUNCH(collection);
           if (!IS_NUMBER(index)) RUNTIME_ERROR("Bunch index must be a number.");
-          int i = (int)AS_NUMBER(index);
-          if (i < 0 || i >= bunch->count)
-            RUNTIME_ERROR("Bunch index out of bounds.");
+          double raw = AS_NUMBER(index);
+          if (!(raw >= 0 && raw < bunch->count)) RUNTIME_ERROR("Bunch index out of bounds.");
+          int i = (int)raw;
+          if (raw != i) RUNTIME_ERROR("Bunch index must be an integer.");
           bunch->values[i] = value;
           *vm->stackTop++ = value;
         } else if (IS_CANOPY(collection)) {
           ObjCanopy* canopy = AS_CANOPY(collection);
           if (!IS_STRING(index)) RUNTIME_ERROR("Canopy keys must be strings.");
-          canopySet(canopy, index, value);
+          canopySet(vm, canopy, index, value);
           *vm->stackTop++ = value;
         } else {
           RUNTIME_ERROR(
@@ -777,26 +994,18 @@ VMResult run(VM* vm) {
       case OP_CALL: {
         uint8_t argCount = *frame->ip++;
         if (!callValue(vm, vm->stackTop[-1 - argCount], argCount)) {
-          if (vm->tryHandlerCount > 0) {
-            TryHandler* handler = &vm->tryHandlers[--vm->tryHandlerCount];
-            vm->frameCount = handler->frameCount;
-            vm->stackTop = handler->stackTop;
-            *vm->stackTop++ = vm->stack[STACK_MAX - 1];
-            frame = &vm->frames[vm->frameCount - 1];
-            frame->ip = handler->catchIp;
-            continue;
-          } else {
-            return VM_RESULT_RUNTIME_ERROR;
-          }
+          goto handle_error;
         }
         frame = &vm->frames[vm->frameCount - 1];
         break;
       }
       case OP_RETURN: {
         Value result = *--vm->stackTop;
+        vm->loop_counter_top = frame->loopDepth;
+        vm->tryHandlerCount = frame->handlerDepth;
         vm->frameCount--;
         if (vm->frameCount == 0) {
-          --vm->stackTop;
+          vm->stackTop = vm->stack;
           return VM_RESULT_OK;
         }
         vm->stackTop = frame->slots;
@@ -812,10 +1021,12 @@ VMResult run(VM* vm) {
         TryHandler* handler = &vm->tryHandlers[vm->tryHandlerCount++];
         handler->catchIp = frame->ip + offset;
         handler->frameCount = vm->frameCount;
+        handler->loopDepth = vm->loop_counter_top;
         handler->stackTop = vm->stackTop;
         break;
       }
       case OP_TUMBLE_END:
+        if (!vm->tryHandlerCount) RUNTIME_ERROR("Invalid tumble end.");
         vm->tryHandlerCount--;
         break;
       case OP_FORAGE: {
@@ -870,9 +1081,13 @@ VMResult run(VM* vm) {
             RUNTIME_ERROR("Summon path must end in .ape");
         }
         char apb_path[1024];
-        strncpy(apb_path, ape_path, path_len - 4);
-        apb_path[path_len - 4] = '\0';
-        strcat(apb_path, ".apb");
+        ObjFunction* owner = frame->function->owner ? frame->function->owner : frame->function;
+        const char* slash = owner->path ? strrchr(owner->path, '/') : NULL;
+        size_t prefix = ape_path[0] != '/' && slash ? (size_t)(slash - owner->path + 1) : 0;
+        if (prefix + path_len >= sizeof(apb_path)) RUNTIME_ERROR("Module path too long.");
+        if (prefix) memcpy(apb_path, owner->path, prefix);
+        memcpy(apb_path + prefix, ape_path, path_len + 1);
+        memcpy(apb_path + prefix + path_len - 4, ".apb", 5);
 
         // Read the bytecode from the .apb file.
         size_t bytecode_size = 0;
@@ -881,21 +1096,29 @@ VMResult run(VM* vm) {
             RUNTIME_ERROR("Cannot open or read module file '%s'. Compile it first.", apb_path);
         }
         
+        if (!validateBytecode(bytecode_buffer, bytecode_size)) {
+          free(bytecode_buffer); RUNTIME_ERROR("Invalid module bytecode.");
+        }
         // Create the module function that will own this bytecode.
         ObjFunction* moduleFunc =
             (ObjFunction*)reallocate(vm, NULL, 0, sizeof(ObjFunction));
+        memset(moduleFunc, 0, sizeof(*moduleFunc));
+        moduleFunc->path = malloc(strlen(apb_path) + 1);
+        strcpy(moduleFunc->path, apb_path);
         moduleFunc->obj.type = OBJ_FUNCTION;
         moduleFunc->arity = 0;
         moduleFunc->name = AS_STRING(pathValue);
 
         // This function owns the new bytecode chunk.
         moduleFunc->code = bytecode_buffer;
+        moduleFunc->code_size = bytecode_size;
         moduleFunc->isModule = true; // This tells the GC to free the code buffer later.
         
         moduleFunc->obj.isMarked = false;
         moduleFunc->obj.next = vm->objects;
         vm->objects = (Obj*)moduleFunc;
         
+        *vm->stackTop++ = OBJ_VAL(moduleFunc);
         if (!call(vm, moduleFunc, 0)) {
             return VM_RESULT_RUNTIME_ERROR;
         }
@@ -908,6 +1131,16 @@ VMResult run(VM* vm) {
       default:
         RUNTIME_ERROR("Unknown opcode %d\n", instruction);
     }
+    continue;
+handle_error:
+    if (vm->tryHandlerCount == 0) return VM_RESULT_RUNTIME_ERROR;
+    TryHandler handler = vm->tryHandlers[--vm->tryHandlerCount];
+    vm->frameCount = handler.frameCount;
+    vm->loop_counter_top = handler.loopDepth;
+    vm->stackTop = handler.stackTop;
+    *vm->stackTop++ = vm->lastError;
+    frame = &vm->frames[vm->frameCount - 1];
+    frame->ip = handler.catchIp;
   }
 }
 
@@ -917,8 +1150,8 @@ static void runtimeError(VM* vm, const char* format, ...) {
   va_start(args, format);
   vsnprintf(buffer, sizeof(buffer), format, args);
   va_end(args);
-  fprintf(stderr, "Runtime Error: %s", buffer);
-  for (int i = vm->frameCount - 1; i >= 0; i--) {
+  if (vm->tryHandlerCount == 0) fprintf(stderr, "Runtime Error: %s\n", buffer);
+  for (int i = vm->tryHandlerCount ? -1 : vm->frameCount - 1; i >= 0; i--) {
     CallFrame* frame = &vm->frames[i];
     ObjFunction* function = frame->function;
     fprintf(stderr, "\n[line ?] in %s()",
@@ -935,10 +1168,11 @@ static void runtimeError(VM* vm, const char* format, ...) {
   errObj->obj.isMarked = false;
   errObj->obj.next = vm->objects;
   vm->objects = (Obj*)errObj;
-  vm->stack[STACK_MAX - 1] = OBJ_VAL(errObj);
+  vm->lastError = OBJ_VAL(errObj);
 }
 
-void printValue(Value value) {
+static void printValueDepth(Value value, int depth) {
+  if (depth >= 32) { printf("<...>"); return; }
   switch (value.type) {
     case VAL_BOOL:
       printf(AS_BOOL(value) ? "true" : "false");
@@ -964,7 +1198,7 @@ void printValue(Value value) {
           ObjBunch* bunch = AS_BUNCH(value);
           printf("[");
           for (int i = 0; i < bunch->count; i++) {
-            printValue(bunch->values[i]);
+            printValueDepth(bunch->values[i], depth + 1);
             if (i < bunch->count - 1) printf(", ");
           }
           printf("]");
@@ -976,9 +1210,9 @@ void printValue(Value value) {
           int printed = 0;
           for (int i = 0; i < canopy->capacity; i++) {
             if (!IS_NIL(canopy->entries[i].key)) {
-              printValue(canopy->entries[i].key);
+              printValueDepth(canopy->entries[i].key, depth + 1);
               printf(": ");
-              printValue(canopy->entries[i].value);
+              printValueDepth(canopy->entries[i].value, depth + 1);
               if (printed < canopy->count - 1) printf(", ");
               printed++;
             }
@@ -991,7 +1225,12 @@ void printValue(Value value) {
   }
 }
 
+static void printValue(Value value) { printValueDepth(value, 0); }
+
 void initVM(VM* vm) {
+  memset(vm, 0, sizeof(*vm));
+  vm->lastError = NIL_VAL;
+  vm->randomState = 0x9e3779b9u;
   vm->stackTop = vm->stack;
   vm->frameCount = 0;
   vm->variableCount = 0;
@@ -1018,6 +1257,10 @@ void freeVM(VM* vm) {
 }
 
 VMResult interpret(VM* vm, const char* source) {
+  return executeSource(vm, source, true);
+}
+
+VMResult executeSource(VM* vm, const char* source, bool isRepl) {
   uint8_t* bytecode_buffer = NULL;
   size_t bytecode_size = 0;
   FILE* mem_file = open_memstream((char**)&bytecode_buffer, &bytecode_size);
@@ -1026,25 +1269,36 @@ VMResult interpret(VM* vm, const char* source) {
     return VM_RESULT_RUNTIME_ERROR;
   }
 
-  if (!compile(source, mem_file, true)) {
+  if (!compile(source, mem_file, isRepl)) {
     fclose(mem_file);
     free(bytecode_buffer);
     return VM_RESULT_COMPILE_ERROR;
   }
 
-  fflush(mem_file);
+  fclose(mem_file);
+  if (!validateBytecode(bytecode_buffer, bytecode_size)) {
+    free(bytecode_buffer);
+    return VM_RESULT_COMPILE_ERROR;
+  }
+  vm->stackTop = vm->stack;
+  vm->frameCount = vm->tryHandlerCount = vm->loop_counter_top = 0;
+  vm->instructions = 0;
 
   ObjFunction* function =
       (ObjFunction*)reallocate(vm, NULL, 0, sizeof(ObjFunction));
+  memset(function, 0, sizeof(*function));
   function->obj.type = OBJ_FUNCTION;
   function->arity = 0;
   function->name = NULL;
 
   function->code = bytecode_buffer;
+  function->code_size = bytecode_size;
   function->owner = NULL;
   function->code_offset = 0;
   function->isModule = true; 
 
+  function->obj.next = vm->objects;
+  vm->objects = (Obj*)function;
   *vm->stackTop++ = OBJ_VAL(function);
   call(vm, function, 0);
   
@@ -1053,7 +1307,8 @@ VMResult interpret(VM* vm, const char* source) {
   }
 
   VMResult result = run(vm);
-  fclose(mem_file);
+  vm->stackTop = vm->stack;
+  vm->frameCount = vm->tryHandlerCount = vm->loop_counter_top = 0;
 
   return result;
 }
@@ -1067,11 +1322,18 @@ VMResult runBytecode(VM* vm, const char* path) {
 
   fseek(file, 0L, SEEK_END);
   long fileSize = ftell(file);
+  if (fileSize <= 0 || fileSize > 1024 * 1024) { fclose(file); return VM_RESULT_RUNTIME_ERROR; }
   rewind(file);
   vm->bytecode = (uint8_t*)malloc(fileSize + 1);
   if (vm->bytecode == NULL) exit(74);
-  fread(vm->bytecode, sizeof(uint8_t), fileSize, file);
+  if (fread(vm->bytecode, sizeof(uint8_t), fileSize, file) != (size_t)fileSize) {
+    fclose(file); free(vm->bytecode); vm->bytecode = NULL; return VM_RESULT_RUNTIME_ERROR;
+  }
   fclose(file);
+  if (!validateBytecode(vm->bytecode, fileSize)) {
+    free(vm->bytecode); vm->bytecode = NULL;
+    fprintf(stderr, "Invalid bytecode.\n"); return VM_RESULT_RUNTIME_ERROR;
+  }
   vm->bytecode[fileSize] = 255;
 
   ObjFunction* topLevelFunc =
@@ -1081,9 +1343,13 @@ VMResult runBytecode(VM* vm, const char* path) {
   topLevelFunc->arity = 0;
   
   topLevelFunc->code = vm->bytecode;
+  topLevelFunc->code_size = fileSize;
   topLevelFunc->owner = NULL;
   topLevelFunc->code_offset = 0;
-  topLevelFunc->isModule = false; 
+  topLevelFunc->isModule = true;
+  topLevelFunc->path = malloc(strlen(path) + 1);
+  strcpy(topLevelFunc->path, path);
+  vm->bytecode = NULL;
 
   const char* script_name_literal = "script";
   int name_len = strlen(script_name_literal);
@@ -1101,6 +1367,8 @@ VMResult runBytecode(VM* vm, const char* path) {
   nameString->obj.isMarked = false;
   nameString->obj.next = vm->objects;
   vm->objects = (Obj*)nameString;
+  vm->stackTop = vm->stack;
+  *vm->stackTop++ = OBJ_VAL(topLevelFunc);
   vm->frameCount = 1;
 
   if (vm->frameCount > vm->maxFrameCount) {
@@ -1109,8 +1377,9 @@ VMResult runBytecode(VM* vm, const char* path) {
 
   CallFrame* frame = &vm->frames[0];
   frame->function = topLevelFunc;
-  frame->ip = vm->bytecode;
+  frame->ip = topLevelFunc->code;
   frame->slots = vm->stack;
+  frame->loopDepth = frame->handlerDepth = 0;
   printf("🌴 🦍  OOH-OOH-AAH-AAH!  WELCOME TO THE BANANA JUNGLE  🦍 🌴\n");
   printf("ApesLang VM Output\n");
   VMResult result = run(vm);

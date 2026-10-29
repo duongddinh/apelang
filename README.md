@@ -35,6 +35,66 @@ Forget your high-level abstractions and complex frameworks. Apelang operates on 
 
 ---
 
+## JordyOS integration and reproducible development
+
+The same compiler and VM now build in hosted C and in the freestanding
+[JordyOS kernel](https://github.com/duongddinh/OS-research-lab). JordyOS's
+calculator and editor are `.ape` programs. Its small platform layer implements
+console, RAM-file, allocation, and formatting services; it does not substitute
+a different interpreter.
+
+```sh
+nix develop
+make
+make test
+# Sanitizers where supported:
+make sanitize
+# Undefined-behavior sanitizer alone:
+make sanitize SANITIZERS=undefined
+```
+
+`flake.lock` pins the development tools. A normal C compiler and Make are
+also sufficient for a hosted build. Nix is recommended for matching the OS
+integration environment.
+
+Additional built-ins for writing applications:
+
+| Built-in | Result |
+| --- | --- |
+| `asktext()` | Input as text, including an empty string or numeric text |
+| `number(text)` | Checked number conversion; invalid input raises a catchable error |
+| `files()` | Newline-separated names in the current directory / guest RAM filesystem |
+| `erase(path)` | Delete a file and return a boolean |
+
+Graphics/game built-ins for JordyOS are `paint(x,y,w,h,color)`,
+`drawtext(x,y,text_or_number,color)`, `key()`, and `wait(milliseconds)`.
+`random(limit)` is also available in the hosted VM. Its fixed-seed xorshift
+sequence returns integers in `[0, limit)`. Graphics coordinates and colors
+are checked, rectangles clip to 320x200, and frame waits are limited to
+1–1000 ms. Hosted graphics/input/timing calls raise catchable errors. See
+the JordyOS guide and `programs/snake.ape` for an actual game written in Ape.
+
+`ask()` retains its original automatic numeric conversion. Hosted imports
+resolve relative to the importing source/bytecode file, so compiling or running
+an example does not require changing into its directory. Circular compile-time
+imports report an error. The guest has a flat filesystem and explicit module
+compilation; see the JordyOS guide.
+
+The runtime fixes include catch unwinding, module/function bytecode ownership,
+persistent REPL functions, garbage collection at instruction boundaries, map
+growth, scoped loop locals, zero-count loops, checked operands, and bounded
+bytecode decoding. Recompile `.ape` sources with this version before using the
+updated runtime; block-local layout and loop compilation have changed.
+
+Limits are 256 global variables, 64 call frames, a bounded value stack, 255-byte
+literal strings/identifiers, 64 expression levels, 32 block levels, and six
+nested function declarations. Nested functions do not capture outer locals.
+They can use their own parameters/locals and globals. The regression suite
+covers original examples, malformed input, imports, application built-ins,
+error recovery, and sustained allocations.
+
+---
+
 ## Getting Started (For the Less Evolved)
 
 You’ll need a **C compiler** (`gcc` or `clang`) and `make`.
@@ -403,13 +463,17 @@ Each speaks to a different era in evolutionary coding. Choose based on your brai
 
 ##  Known Bugs (a.k.a. “Unpredictable Ape Behavior”)
 
-Disclaimer: This project is an educational tool and a work-in-progress. It contains known security vulnerabilities and is NOT suitable for running untrusted code or for any form of production use.
-> The primary security weakness in Apeslang stems from the Virtual Machine (VM) completely trusting the bytecode it is instructed to execute. The VM performs no verification or bounds-checking on the bytecode, which allows a specially crafted .apb file to compromise the interpreter's integrity, leading to crashes, information disclosure, or potentially arbitrary code execution.
+This is an educational runtime for trusted programs, not a security sandbox.
+Bytecode decoding and jump targets are checked, and common stack/type errors
+now fail safely, but these checks do not establish memory isolation or prove
+all malformed programs safe. File built-ins have the permissions of the host
+process (or the guest kernel's RAM filesystem). Do not expose the native VM
+as a service for untrusted source or bytecode.
 
-
-* Sometimes the compiler throws a banana peel at you. Try again.
-* The VM might go on a spontaneous swinging spree. It's not a bug, it's enrichment.
-* Error messages are in “Ape-speak” and may require interpretation.
+On this development Mac, the address-sanitizer executable stalled before
+`main`; the normal suite and the undefined-behavior-sanitizer suite passed.
+Use `make sanitize` on a host with a working AddressSanitizer runtime to obtain
+address-sanitizer coverage.
 
 ---
 
